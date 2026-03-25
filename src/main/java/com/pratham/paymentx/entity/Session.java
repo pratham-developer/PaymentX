@@ -9,6 +9,11 @@ import java.time.LocalDateTime;
 @Entity
 @Getter @Setter
 @AllArgsConstructor @NoArgsConstructor
+@Table(indexes = {
+        @Index(name = "idx_session_user", columnList = "user_id"),
+        @Index(name = "idx_session_token", columnList = "refreshTokenHash")
+})
+@Builder
 public class Session {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -24,9 +29,13 @@ public class Session {
     @Column(nullable = false)
     private String deviceFingerprint;
 
+    @Column(unique = true, nullable = false)
+    private String familyId;
+
     @Column(nullable = false)
     private LocalDateTime lastUsedAt;
 
     @CreationTimestamp
+    @Column(updatable = false)
     private LocalDateTime createdAt;
 }

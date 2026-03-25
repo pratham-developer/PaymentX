@@ -10,12 +10,12 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Getter @Setter
-@AllArgsConstructor @NoArgsConstructor
-@Table(name = "paymentx_user", indexes = {
-        @Index(name = "idx_user_email", columnList = "email"),
-        @Index(name = "idx_user_phone", columnList = "phone")
-})
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
+@Table(name = "paymentx_user")
+@Builder
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -24,23 +24,27 @@ public class User {
     @Column(unique = true, nullable = false)
     private String email;
 
-    @Column(nullable = false)
-    private String passwordHash;
-
-    @Column(unique = true, nullable = false, length = 20)
-    private String phone;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Role role;
 
-    @Column(nullable = false)
-    private Boolean isEmailVerified = false;
+    @Column(unique = true)
+    private String googleId;
 
     @Column(nullable = false)
-    private Boolean isPhoneVerified = false;
+    @Builder.Default
+    private Boolean profileCompleted = false;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean profileActive = false;
+    //TODO: Admin route to activate and deactivate profiles (ban)
+    //when creating merchant, keep his profile inactive, admin will approve him
+    //when creating student, keep his profile active
+    //if we have to ban any user, we just make his profile inactive
 
     @CreationTimestamp
+    @Column(updatable = false)
     private LocalDateTime createdAt;
 
     @UpdateTimestamp

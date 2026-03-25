@@ -3,10 +3,7 @@ package com.pratham.paymentx.entity;
 import com.pratham.paymentx.enums.TransactionStatus;
 import com.pratham.paymentx.enums.TransactionType;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -15,10 +12,9 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Getter
-@Setter
-@AllArgsConstructor
-@NoArgsConstructor
+@Getter @Setter
+@AllArgsConstructor @NoArgsConstructor
+@Builder
 public class Transaction {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -43,14 +39,16 @@ public class Transaction {
     @Column(nullable = false)
     private TransactionStatus transactionStatus;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, unique = true, updatable = false)
     private String idempotencyKey;
 
-    //self reference for refund issued by merchant
+    // Self-reference for refunds issued by a merchant
     @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "original_transaction_id")
     private Transaction originalTransaction;
 
     @CreationTimestamp
+    @Column(updatable = false)
     private LocalDateTime createdAt;
 
     @UpdateTimestamp

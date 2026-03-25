@@ -1,10 +1,7 @@
 package com.pratham.paymentx.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -16,6 +13,7 @@ import java.util.UUID;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
+@Builder
 public class StudentProfile {
     @Id
     private UUID id;
@@ -30,6 +28,9 @@ public class StudentProfile {
 
     @Column(unique = true, nullable = false, length = 50)
     private String collegeRegNo;
+
+    @Column(length = 20)
+    private String phone;
 
     @CreationTimestamp
     private LocalDateTime createdAt;

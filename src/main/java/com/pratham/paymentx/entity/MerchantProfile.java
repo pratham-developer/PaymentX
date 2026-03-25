@@ -1,10 +1,7 @@
 package com.pratham.paymentx.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -16,6 +13,7 @@ import java.util.UUID;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
+@Builder
 public class MerchantProfile {
     @Id
     private UUID id;
@@ -31,8 +29,12 @@ public class MerchantProfile {
     private String razorpayContactId;
     private String razorpayFundId;
 
+    //encrypted gst tax id
     @Column(columnDefinition = "bytea")
-    private byte[] gstTaxId;
+    private byte[] encryptedGstTaxId;
+
+    @Column(length = 20)
+    private String phone;
 
     @CreationTimestamp
     private LocalDateTime createdAt;
