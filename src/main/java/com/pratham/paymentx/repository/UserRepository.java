@@ -32,4 +32,6 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     }) //instant timeout if row is already locked
     @Query("select u from User u where u.id = :userId")
     Optional<User> findByIdAndLock(@Param("userId") UUID userId);
+
+    boolean existsByEmail(String email);
 }

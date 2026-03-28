@@ -52,6 +52,9 @@ public class AuthPersistenceServiceImpl implements AuthPersistenceService {
             log.info("Existing user found by email. Attaching Google ID for: {}", email);
             User user = byEmail.get();
             user.setGoogleId(googleId);
+            if(Role.ADMIN.equals(user.getRole())){
+                user.setProfileCompleted(true);
+            }
             // dirty checking will save the user
             return user.getId();
         }
