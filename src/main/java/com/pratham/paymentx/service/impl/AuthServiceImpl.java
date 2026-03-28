@@ -1,9 +1,7 @@
 package com.pratham.paymentx.service.impl;
 
-import com.pratham.paymentx.dto.auth.FinishStudentRequest;
-import com.pratham.paymentx.dto.auth.GoogleAccount;
-import com.pratham.paymentx.dto.auth.GoogleLoginRequest;
-import com.pratham.paymentx.dto.auth.TokenResponse;
+import com.pratham.paymentx.dto.auth.*;
+import com.pratham.paymentx.entity.MerchantProfile;
 import com.pratham.paymentx.entity.NfcCard;
 import com.pratham.paymentx.entity.StudentProfile;
 import com.pratham.paymentx.entity.User;
@@ -12,6 +10,7 @@ import com.pratham.paymentx.enums.Role;
 import com.pratham.paymentx.exception.BadRequestException;
 import com.pratham.paymentx.exception.InvalidRoleException;
 import com.pratham.paymentx.exception.ResourceNotFoundException;
+import com.pratham.paymentx.repository.MerchantProfileRepository;
 import com.pratham.paymentx.repository.NfcCardRepository;
 import com.pratham.paymentx.repository.StudentProfileRepository;
 import com.pratham.paymentx.repository.UserRepository;
@@ -20,6 +19,7 @@ import com.pratham.paymentx.security.UserPrincipal;
 import com.pratham.paymentx.service.AuthPersistenceService;
 import com.pratham.paymentx.service.AuthService;
 import com.pratham.paymentx.service.SessionService;
+import com.pratham.paymentx.util.EncryptionUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -38,6 +38,8 @@ public class AuthServiceImpl implements AuthService {
     private final UserRepository userRepository;
     private final StudentProfileRepository studentProfileRepository;
     private final NfcCardRepository nfcCardRepository;
+    private final MerchantProfileRepository merchantProfileRepository;
+    private final EncryptionUtil encryptionUtil;
 
     @Override
     public UserPrincipal getCurrentPrincipal() {
@@ -81,7 +83,7 @@ public class AuthServiceImpl implements AuthService {
 
         //load student profile
         StudentProfile studentProfile = studentProfileRepository.findByUser(user).orElseThrow(
-                () -> new ResourceNotFoundException("Profile does not exist for the user")
+                () -> new ResourceNotFoundException("Student Profile not found for the user")
         );
 
         //dirty check auto saves studentProfile and user
@@ -96,6 +98,49 @@ public class AuthServiceImpl implements AuthService {
                 .build();
         nfcCardRepository.save(nfcCard);
         log.info("Successfully finished profile for a student with email: {}",userPrincipal.getEmail());
+    }
+
+    @Override
+    @Transactional
+    public void finishMerchant(FinishMerchantRequest request) {
+        UserPrincipal userPrincipal = getCurrentPrincipal();
+        log.info("Finishing profile for a merchant with email: {}",userPrincipal.getEmail());
+        User user = userRepository.findById(userPrincipal.getUserId()).orElseThrow(
+                () -> new ResourceNotFoundException("User not found")
+        );
+
+        //validate role and profile state
+        if (!Role.MERCHANT.equals(user.getRole())) {
+            throw new InvalidRoleException("User is not a MERCHANT");
+        }
+        if (user.getProfileCompleted()) {
+            throw new BadRequestException("Profile is already completed");
+        }
+
+        //fetch merchant profile
+        MerchantProfile merchantProfile = merchantProfileRepository.findByUser(user).orElseThrow(
+                ()->new ResourceNotFoundException("Merchant Profile not found for the user")
+        );
+
+        //encrypt
+        byte[] encryptedGst = encryptionUtil.encrypt(request.getGstTaxId());
+        byte[] encryptedBankAcc = encryptionUtil.encrypt(request.getBankAccountNumber());
+        byte[] encryptedIfsc = encryptionUtil.encrypt(request.getIfscCode());
+
+        //update profile
+        merchantProfile.setBusinessName(request.getBusinessName());
+        merchantProfile.setPhone(request.getPhone());
+        merchantProfile.setBeneficiaryName(request.getBeneficiaryName());
+        merchantProfile.setEncryptedGstTaxId(encryptedGst);
+        merchantProfile.setEncryptedBankAccount(encryptedBankAcc);
+        merchantProfile.setEncryptedIfsc(encryptedIfsc);
+        //by default while creating profile, gateway status is set to pending
+
+        //mark profile completed as true
+        user.setProfileCompleted(true);
+
+        //dirty check saves user and profile
+        log.info("Merchant Profile finished for user with email: {}. Awaiting admin approval.", userPrincipal.getEmail());
     }
 
     // TODO: Admin route to create new admin

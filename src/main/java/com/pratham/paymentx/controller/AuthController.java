@@ -27,20 +27,21 @@ public class AuthController {
 
     //only students can access
     @PreAuthorize("hasRole('STUDENT')")
-    @PostMapping("/finish/student")
+    @PostMapping("/student/finish")
     public ResponseEntity<Void> finishStudent(@Valid @RequestBody FinishStudentRequest request){
         log.info("Attempting to finish profile for a student");
         authService.finishStudent(request);
         return ResponseEntity.noContent().build();
     }
-//
-//    //only accessible by users with role = merchant
-//    //service method gets the user from security context
-//    @PostMapping("/finish/merchant")
-//    public ResponseEntity<TokenResponse> finishStudent(@Valid @RequestBody FinishMerchantRequest request){
-//        log.info("Attempting to finish profile for a merchant");
-//        return ResponseEntity.ok(authService.finishMerchant(request));
-//    }
+
+    //only merchants can access
+    @PreAuthorize("hasRole('MERCHANT')")
+    @PostMapping("/merchant/finish")
+    public ResponseEntity<Void> finishMerchant(@Valid @RequestBody FinishMerchantRequest request){
+        log.info("Attempting to finish profile for a merchant");
+        authService.finishMerchant(request);
+        return ResponseEntity.noContent().build();
+    }
 //
 //    //public route
 //    @PostMapping("/refresh")
