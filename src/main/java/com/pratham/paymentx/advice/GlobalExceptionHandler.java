@@ -1,9 +1,7 @@
 package com.pratham.paymentx.advice;
 
-import com.pratham.paymentx.exception.BadRequestException;
-import com.pratham.paymentx.exception.ExternalAuthenticationException;
-import com.pratham.paymentx.exception.InvalidTokenException;
-import com.pratham.paymentx.exception.ResourceNotFoundException;
+import com.pratham.paymentx.exception.*;
+import io.jsonwebtoken.JwtException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.CannotAcquireLockException;
@@ -13,6 +11,8 @@ import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
@@ -26,6 +26,29 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    /* @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ApiResponse<?>> handleRateLimitExceededException(RateLimitExceededException exception){
+        log.warn("Rate limit exceeded. Retry after {} seconds.", exception.getRetryAfterSeconds());
+        ApiError apiError = ApiError.builder()
+                .status(HttpStatus.TOO_MANY_REQUESTS)
+                .message("Too many requests. Please try again in " + exception.getRetryAfterSeconds() + " seconds.")
+                .build();
+        return buildErrorResponseEntity(apiError);
+    }
+     */
+
+    @ExceptionHandler(InvalidRoleException.class)
+    public ResponseEntity<ApiResponse<?>> handleInvalidRoleException(InvalidRoleException exception){
+        log.warn("Invalid Role: {}", exception.getMessage());
+        ApiError apiError = ApiError.builder()
+                .status(HttpStatus.FORBIDDEN)
+                .message(exception.getMessage())
+                .build();
+        return buildErrorResponseEntity(apiError);
+    }
+
+
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<?>> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
@@ -119,16 +142,6 @@ public class GlobalExceptionHandler {
         return buildErrorResponseEntity(apiError);
     }
 
-    /* @ExceptionHandler(RateLimitExceededException.class)
-    public ResponseEntity<ApiResponse<?>> handleRateLimitExceededException(RateLimitExceededException exception){
-        log.warn("Rate limit exceeded. Retry after {} seconds.", exception.getRetryAfterSeconds());
-        ApiError apiError = ApiError.builder()
-                .status(HttpStatus.TOO_MANY_REQUESTS)
-                .message("Too many requests. Please try again in " + exception.getRetryAfterSeconds() + " seconds.")
-                .build();
-        return buildErrorResponseEntity(apiError);
-    }
-
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<?>> handleAccessDeniedException(AccessDeniedException exception){
         log.warn("Access denied for request: {}", exception.getMessage());
@@ -158,7 +171,6 @@ public class GlobalExceptionHandler {
                 .build();
         return buildErrorResponseEntity(apiError);
     }
-    */
 
     @ExceptionHandler(ExternalAuthenticationException.class)
     public ResponseEntity<ApiResponse<?>> handleExternalAuthException(ExternalAuthenticationException exception) {

@@ -5,6 +5,7 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Getter @Setter
@@ -26,11 +27,8 @@ public class Session {
     @Column(unique = true, nullable = false)
     private String refreshTokenHash;
 
-    @Column(nullable = false)
-    private String deviceFingerprint;
-
     @Column(unique = true, nullable = false)
-    private String familyId;
+    private UUID familyId;
 
     @Column(nullable = false)
     private LocalDateTime lastUsedAt;

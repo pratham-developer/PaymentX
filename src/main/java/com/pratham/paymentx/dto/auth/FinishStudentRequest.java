@@ -18,4 +18,7 @@ public class FinishStudentRequest {
     )
     private String phone;
 
+    @NotBlank(message = "Chip ID is required")
+    private String chipId;
+
 }

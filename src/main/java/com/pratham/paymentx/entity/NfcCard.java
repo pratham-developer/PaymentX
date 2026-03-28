@@ -18,12 +18,12 @@ public class NfcCard {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "student_profile_id", nullable = false)
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "student_profile_id", nullable = false, unique = true)
     private StudentProfile studentProfile;
 
-    @Column(nullable = false, unique = true, length = 100, updatable = false)
-    private String cardUuid;
+    @Column(nullable = false, unique = true, length = 128, updatable = false)
+    private String chipId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

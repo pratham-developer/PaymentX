@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 
@@ -17,21 +18,21 @@ public class AuthController {
 
     private final AuthService authService;
 
-    //login or register
     //public route
     @PostMapping("/login")
     public ResponseEntity<TokenResponse> login(@Valid @RequestBody GoogleLoginRequest request) {
-        log.info("Attempting to process login request for device fingerprint: {}", request.getDeviceFingerprint());
+        log.info("Attempting to process login request");
         return ResponseEntity.ok(authService.login(request));
     }
 
-//    //only accessible by users with role = student
-//    //service method gets the user from security context
-//    @PostMapping("/finish/student")
-//    public ResponseEntity<TokenResponse> finishStudent(@Valid @RequestBody FinishStudentRequest request){
-//        log.info("Attempting to finish profile for a student");
-//        return ResponseEntity.ok(authService.finishStudent(request));
-//    }
+    //only students can access
+    @PreAuthorize("hasRole('STUDENT')")
+    @PostMapping("/finish/student")
+    public ResponseEntity<Void> finishStudent(@Valid @RequestBody FinishStudentRequest request){
+        log.info("Attempting to finish profile for a student");
+        authService.finishStudent(request);
+        return ResponseEntity.noContent().build();
+    }
 //
 //    //only accessible by users with role = merchant
 //    //service method gets the user from security context
@@ -57,4 +58,6 @@ public class AuthController {
 //        authService.logout(refreshToken);
 //        return ResponseEntity.noContent().build();
 //    }
+
+    //TODO: dashboard route -> gets user details with the recent transactions
 }

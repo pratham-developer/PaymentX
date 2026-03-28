@@ -34,7 +34,7 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     @Transactional
-    public TokenResponse createSession(UUID userId, String deviceFingerprint) {
+    public TokenResponse createSession(UUID userId) {
         log.info("Acquiring pessimistic write lock for user ID: {}", userId);
 
         // fetch the user by locking the row to prevent race conditions while creating sessions
@@ -56,7 +56,7 @@ public class SessionServiceImpl implements SessionService {
         }
 
         // create new session
-        String familyId = UUID.randomUUID().toString();
+        UUID familyId = UUID.randomUUID();
         String accessToken = jwtProvider.generateAccessToken(user, familyId);
         String refreshToken = jwtProvider.generateRefreshToken(user, familyId);
         String refreshTokenHash = hashUtil.hash(refreshToken);
@@ -64,7 +64,6 @@ public class SessionServiceImpl implements SessionService {
         Session newSession = Session.builder()
                 .user(user)
                 .refreshTokenHash(refreshTokenHash)
-                .deviceFingerprint(deviceFingerprint)
                 .familyId(familyId)
                 .lastUsedAt(LocalDateTime.now())
                 .build();
