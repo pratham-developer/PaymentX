@@ -12,4 +12,5 @@ public interface AuthService {
     void finishStudent(FinishStudentRequest request);
     void finishMerchant(FinishMerchantRequest request);
     TokenResponse refresh(String refreshToken);
+    void logout(String refreshToken);
 }

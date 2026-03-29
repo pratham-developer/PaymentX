@@ -17,6 +17,7 @@ public interface SessionRepository extends JpaRepository<Session,UUID> {
     List<Session> findByUserOrderByLastUsedAtAsc(User user);
 
 
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @QueryHints({
             @QueryHint(name = "jakarta.persistence.lock.timeout", value = "0")
@@ -31,7 +32,15 @@ AND u.id = :userId
             @Param("userId") UUID userId
     );
 
+
     @Modifying(flushAutomatically = true,clearAutomatically = true)
     @Query("delete from Session s where s.user.id = :userId")
     void deleteAllSessionsForUser(@Param("userId") UUID userId);
+
+
+    @Query("select s from Session s where s.id = :sessionId and s.user.id = :userId")
+    Optional<Session> findByIdAndUserId(
+            @Param("sessionId") UUID sessionId,
+            @Param("userId") UUID userId
+    );
 }

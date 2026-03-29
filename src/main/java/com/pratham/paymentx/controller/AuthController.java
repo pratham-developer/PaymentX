@@ -23,6 +23,7 @@ public class AuthController {
     public ResponseEntity<TokenResponse> login(@Valid @RequestBody GoogleLoginRequest request) {
         log.info("Attempting to process login request");
         return ResponseEntity.ok(authService.login(request));
+        
     }
 
     //only students can access
@@ -49,16 +50,13 @@ public class AuthController {
         log.info("Attempting to refresh session for a user");
         return ResponseEntity.ok(authService.refresh(refreshToken));
     }
-//
-//    //requires user to be authenticated
-//    //user will be fetched from security context
-//    //refresh token is required to handle the session corresponding to it
-//    @PostMapping("/logout")
-//    public ResponseEntity<Void> logout(@RequestHeader("x-refresh-token") String refreshToken){
-//        log.info("Attempting to logout user");
-//        authService.logout(refreshToken);
-//        return ResponseEntity.noContent().build();
-//    }
 
+    //public route
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@RequestHeader("x-refresh-token") String refreshToken){
+        log.info("Attempting to logout a user");
+        authService.logout(refreshToken);
+        return ResponseEntity.noContent().build();
+    }
     //TODO: dashboard route -> gets user details with the recent transactions
 }

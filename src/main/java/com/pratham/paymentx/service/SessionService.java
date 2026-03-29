@@ -8,4 +8,5 @@ import java.util.UUID;
 public interface SessionService {
     TokenResponse createSession(UUID userId);
     Optional<TokenResponse> refreshSession(String refreshToken);
+    void revokeSession(String refreshToken);
 }

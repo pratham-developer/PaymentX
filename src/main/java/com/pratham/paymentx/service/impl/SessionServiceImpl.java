@@ -11,6 +11,7 @@ import com.pratham.paymentx.repository.UserRepository;
 import com.pratham.paymentx.security.JwtProvider;
 import com.pratham.paymentx.service.SessionService;
 import com.pratham.paymentx.util.HashUtil;
+import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -132,5 +133,27 @@ public class SessionServiceImpl implements SessionService {
                 .build();
 
         return Optional.of(tokenResponse);
+    }
+
+    @Override
+    @Transactional
+    public void revokeSession(String refreshToken) {
+        try {
+            ParsedRefreshToken parsedRefreshToken = jwtProvider.parseRefreshToken(refreshToken);
+            UUID userId = parsedRefreshToken.getUserId();
+            UUID sessionId = parsedRefreshToken.getSessionId();
+
+            Optional<Session> optional = sessionRepository.findByIdAndUserId(sessionId, userId);
+
+            if(optional.isEmpty()){
+                return;
+            }
+            Session session = optional.get();
+            //TODO: blacklist userId:sessionId:session.getFamilyId():
+            sessionRepository.delete(session);
+        } catch (JwtException e) {
+            // The token is already dead. Ignore the error so the frontend clears its state.
+            log.info("Logout attempted with invalid or expired token. Treating as success.");
+        }
     }
 }

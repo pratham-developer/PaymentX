@@ -148,13 +148,23 @@ public class AuthServiceImpl implements AuthService {
     public TokenResponse refresh(String refreshToken) {
         log.info("Refreshing session for a user");
         if (refreshToken == null || refreshToken.isBlank()) {
-            throw new BadRequestException("Refresh token missing");
+            throw new BadRequestException("Refresh Token missing");
         }
         TokenResponse tokenResponse = sessionService.refreshSession(refreshToken).orElseThrow(
                 ()->new InvalidTokenException("Old Refresh Token re-use detected")
         );
         log.info("Successfully refreshed session for a user");
         return tokenResponse;
+    }
+
+    @Override
+    public void logout(String refreshToken) {
+        log.info("Processing logout for a user");
+        if(refreshToken == null || refreshToken.isBlank()){
+            throw new BadRequestException("Refresh Token missing");
+        }
+        sessionService.revokeSession(refreshToken);
+        log.info("Successfully logged out user and revoked session");
     }
 
     // TODO: Admin route to create new admin
