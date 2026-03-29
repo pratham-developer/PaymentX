@@ -40,6 +40,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 String accessToken = authorizationHeader.substring(7);
                 ParsedAccessToken parsedAccessToken = jwtProvider.parseAccessToken(accessToken);
                 //TODO: token blacklist check on access token
+                //key = userId:sessionId:familyId
                 UserPrincipal userPrincipal = new UserPrincipal(parsedAccessToken);
                 UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
                         userPrincipal,null,userPrincipal.getAuthorities()

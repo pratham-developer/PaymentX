@@ -17,8 +17,7 @@ import java.util.UUID;
 @Builder
 public class Session {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
@@ -27,7 +26,11 @@ public class Session {
     @Column(unique = true, nullable = false)
     private String refreshTokenHash;
 
-    @Column(unique = true, nullable = false)
+    //will act as the common identifier for all access tokens issued for the session
+    //access tokens for a user's session = userId:sessionId:familyId
+    //not unique
+    @Column(nullable = false)
+
     private UUID familyId;
 
     @Column(nullable = false)

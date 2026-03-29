@@ -1,8 +1,10 @@
 package com.pratham.paymentx.service.impl;
 
+import com.pratham.paymentx.dto.auth.ParsedRefreshToken;
 import com.pratham.paymentx.dto.auth.TokenResponse;
 import com.pratham.paymentx.entity.Session;
 import com.pratham.paymentx.entity.User;
+import com.pratham.paymentx.exception.InvalidTokenException;
 import com.pratham.paymentx.exception.ResourceNotFoundException;
 import com.pratham.paymentx.repository.SessionRepository;
 import com.pratham.paymentx.repository.UserRepository;
@@ -17,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -56,12 +59,14 @@ public class SessionServiceImpl implements SessionService {
         }
 
         // create new session
+        UUID sessionId = UUID.randomUUID();
         UUID familyId = UUID.randomUUID();
-        String accessToken = jwtProvider.generateAccessToken(user, familyId);
-        String refreshToken = jwtProvider.generateRefreshToken(user, familyId);
+        String accessToken = jwtProvider.generateAccessToken(user, sessionId, familyId);
+        String refreshToken = jwtProvider.generateRefreshToken(user, sessionId);
         String refreshTokenHash = hashUtil.hash(refreshToken);
 
         Session newSession = Session.builder()
+                .id(sessionId)
                 .user(user)
                 .refreshTokenHash(refreshTokenHash)
                 .familyId(familyId)
@@ -75,5 +80,57 @@ public class SessionServiceImpl implements SessionService {
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public Optional<TokenResponse> refreshSession(String refreshToken) {
+        //parse refresh token
+        ParsedRefreshToken parsedRefreshToken = jwtProvider.parseRefreshToken(refreshToken);
+        UUID sessionId = parsedRefreshToken.getSessionId();
+        UUID userId = parsedRefreshToken.getUserId();
+
+        //find session with sessionId and userId
+        Session session = sessionRepository.findSessionForRefresh(sessionId,userId).orElseThrow(
+                ()->new InvalidTokenException("Refresh Token is invalid")
+        );
+
+        //hash incoming token
+        String refreshTokenHash = hashUtil.hash(refreshToken);
+
+        //if not matching then it means old token is used
+        //because inside token, sessionId and userId are same throughout the session
+        //actually they are logically bound to be same for the same session
+        if(!refreshTokenHash.equals(session.getRefreshTokenHash())){
+            //if last refresh was more than 30 seconds ago
+            if(!session.getLastUsedAt().isAfter(LocalDateTime.now().minusSeconds(30))){
+                //likely a token re-use attack
+                //delete all sessions for user
+                sessionRepository.deleteAllSessionsForUser(userId);
+                //TODO: blacklist all active tokens (userId:sessionId:familyId) for the user in redis
+            }
+            return Optional.empty();
+        }
+        //get old familyId to revoke old access tokens
+        UUID oldFamilyId = session.getFamilyId();
+
+        //if match then issue new tokens
+        UUID newFamilyId = UUID.randomUUID();
+        String newRefreshToken = jwtProvider.generateRefreshToken(session.getUser(),sessionId);
+        String newAccessToken = jwtProvider.generateAccessToken(session.getUser(),sessionId,newFamilyId);
+
+        //update session
+        session.setFamilyId(newFamilyId);
+        session.setRefreshTokenHash(hashUtil.hash(newRefreshToken));
+        session.setLastUsedAt(LocalDateTime.now());
+        sessionRepository.saveAndFlush(session);
+
+        //TODO: blacklist userId:sessionId:oldFamilyId in redis
+        TokenResponse tokenResponse = TokenResponse.builder()
+                .refreshToken(newRefreshToken)
+                .accessToken(newAccessToken)
+                .build();
+
+        return Optional.of(tokenResponse);
     }
 }

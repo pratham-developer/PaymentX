@@ -244,11 +244,13 @@ public class GlobalExceptionHandler {
             CannotAcquireLockException.class
     })
     public ResponseEntity<ApiResponse<?>> handlePessimisticLock(Exception exception) {
-        log.warn("Concurrent login attempt blocked by database lock: {}",exception.getMessage());
+        log.warn("Concurrent request blocked by database lock: {}", exception.getMessage());
+
         ApiError apiError = ApiError.builder()
                 .status(HttpStatus.TOO_MANY_REQUESTS)
-                .message("Login already in progress. Please wait a moment and try again.")
+                .message("Request already in progress. Please wait a moment and try again.")
                 .build();
+
         return buildErrorResponseEntity(apiError);
     }
 

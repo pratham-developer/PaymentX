@@ -11,4 +11,5 @@ public interface AuthService {
     TokenResponse login(GoogleLoginRequest request);
     void finishStudent(FinishStudentRequest request);
     void finishMerchant(FinishMerchantRequest request);
+    TokenResponse refresh(String refreshToken);
 }

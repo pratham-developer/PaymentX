@@ -15,6 +15,7 @@ import java.util.UUID;
 public class ParsedAccessToken {
     private UUID userId;
     private String email;
+    private UUID sessionId;
     private UUID familyId;
     private Role role;
 }

@@ -13,5 +13,5 @@ import java.util.UUID;
 @Builder
 public class ParsedRefreshToken {
     private UUID userId;
-    private UUID familyId;
+    private UUID sessionId;
 }

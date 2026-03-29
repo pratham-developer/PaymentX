@@ -42,13 +42,13 @@ public class AuthController {
         authService.finishMerchant(request);
         return ResponseEntity.noContent().build();
     }
-//
-//    //public route
-//    @PostMapping("/refresh")
-//    public ResponseEntity<TokenResponse> refresh(@RequestHeader("x-refresh-token") String refreshToken){
-//        log.info("Attempting to refresh user");
-//        return ResponseEntity.ok(authService.refresh(refreshToken));
-//    }
+
+    //public route
+    @PostMapping("/refresh")
+    public ResponseEntity<TokenResponse> refresh(@RequestHeader("x-refresh-token") String refreshToken){
+        log.info("Attempting to refresh session for a user");
+        return ResponseEntity.ok(authService.refresh(refreshToken));
+    }
 //
 //    //requires user to be authenticated
 //    //user will be fetched from security context

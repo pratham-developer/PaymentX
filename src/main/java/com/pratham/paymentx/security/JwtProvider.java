@@ -41,10 +41,11 @@ public class JwtProvider {
         this.refreshKey = Keys.hmacShaKeyFor(refreshSecret.getBytes(StandardCharsets.UTF_8));
     }
 
-    public String generateAccessToken(User user, UUID familyId){
+    public String generateAccessToken(User user, UUID sessionId, UUID familyId){
         return Jwts.builder()
                 .id(UUID.randomUUID().toString())
                 .subject(user.getId().toString())
+                .claim("sid",sessionId.toString())
                 .claim("familyId",familyId.toString())
                 .claim("email",user.getEmail())
                 .claim("role",user.getRole().name())
@@ -54,11 +55,11 @@ public class JwtProvider {
                 .compact();
     }
 
-    public String generateRefreshToken(User user, UUID familyId){
+    public String generateRefreshToken(User user, UUID sessionId){
         return Jwts.builder()
                 .id(UUID.randomUUID().toString())
                 .subject(user.getId().toString())
-                .claim("familyId",familyId.toString())
+                .claim("sid",sessionId.toString())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis()+refreshExpiryMs))
                 .signWith(refreshKey)
@@ -76,6 +77,7 @@ public class JwtProvider {
         return ParsedAccessToken.builder()
                 .userId(UUID.fromString(claims.getSubject()))
                 .email(claims.get("email", String.class))
+                .sessionId(UUID.fromString(claims.get("sid",String.class)))
                 .familyId(UUID.fromString(claims.get("familyId", String.class)))
                 .role(Role.from(claims.get("role", String.class)))
                 .build();
@@ -85,7 +87,7 @@ public class JwtProvider {
         Claims claims = parse(refreshToken,refreshKey);
         return ParsedRefreshToken.builder()
                 .userId(UUID.fromString(claims.getSubject()))
-                .familyId(UUID.fromString(claims.get("familyId", String.class)))
+                .sessionId(UUID.fromString(claims.get("sid", String.class)))
                 .build();
     }
 }

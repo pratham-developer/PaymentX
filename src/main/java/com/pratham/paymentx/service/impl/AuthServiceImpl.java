@@ -9,6 +9,7 @@ import com.pratham.paymentx.enums.NfcCardStatus;
 import com.pratham.paymentx.enums.Role;
 import com.pratham.paymentx.exception.BadRequestException;
 import com.pratham.paymentx.exception.InvalidRoleException;
+import com.pratham.paymentx.exception.InvalidTokenException;
 import com.pratham.paymentx.exception.ResourceNotFoundException;
 import com.pratham.paymentx.repository.MerchantProfileRepository;
 import com.pratham.paymentx.repository.NfcCardRepository;
@@ -141,6 +142,19 @@ public class AuthServiceImpl implements AuthService {
 
         //dirty check saves user and profile
         log.info("Merchant Profile finished for user with email: {}. Awaiting admin approval.", userPrincipal.getEmail());
+    }
+
+    @Override
+    public TokenResponse refresh(String refreshToken) {
+        log.info("Refreshing session for a user");
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new BadRequestException("Refresh token missing");
+        }
+        TokenResponse tokenResponse = sessionService.refreshSession(refreshToken).orElseThrow(
+                ()->new InvalidTokenException("Old Refresh Token re-use detected")
+        );
+        log.info("Successfully refreshed session for a user");
+        return tokenResponse;
     }
 
     // TODO: Admin route to create new admin
