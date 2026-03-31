@@ -2,6 +2,7 @@ package com.pratham.paymentx.repository;
 
 import com.pratham.paymentx.entity.Session;
 import com.pratham.paymentx.entity.User;
+import com.pratham.paymentx.projection.SessionWrapper;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.jpa.repository.*;
@@ -43,4 +44,11 @@ AND u.id = :userId
             @Param("sessionId") UUID sessionId,
             @Param("userId") UUID userId
     );
+
+    @Query("""
+select new com.pratham.paymentx.projection.SessionWrapper(s.id,s.familyId)
+from Session s
+where s.user.id = :userId
+""")
+    List<SessionWrapper> findSessionIdAndFamilyId(UUID userId);
 }

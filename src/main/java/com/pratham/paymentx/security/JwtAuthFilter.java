@@ -1,12 +1,14 @@
 package com.pratham.paymentx.security;
 
 import com.pratham.paymentx.dto.auth.ParsedAccessToken;
+import com.pratham.paymentx.exception.InvalidTokenException;
+import com.pratham.paymentx.service.TokenBlacklistService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import org.checkerframework.checker.nullness.qual.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -20,6 +22,7 @@ import java.io.IOException;
 public class JwtAuthFilter extends OncePerRequestFilter {
     private final HandlerExceptionResolver handlerExceptionResolver;
     private final JwtProvider jwtProvider;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Override
     protected void doFilterInternal(
@@ -29,7 +32,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         //fetch the auth header
         String authorizationHeader = request.getHeader("Authorization");
-        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ") || authorizationHeader.length() <= 7) {
+        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ") || authorizationHeader.length() == 7) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -39,8 +42,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             if(SecurityContextHolder.getContext().getAuthentication()==null){
                 String accessToken = authorizationHeader.substring(7);
                 ParsedAccessToken parsedAccessToken = jwtProvider.parseAccessToken(accessToken);
-                //TODO: token blacklist check on access token
+                //token blacklist check on access token
                 //key = userId:sessionId:familyId
+                if(tokenBlacklistService.isBlacklisted(
+                        parsedAccessToken.getUserId(),parsedAccessToken.getSessionId(),parsedAccessToken.getFamilyId())
+                ){
+                    throw new InvalidTokenException("Session Expired");
+                }
                 UserPrincipal userPrincipal = new UserPrincipal(parsedAccessToken);
                 UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
                         userPrincipal,null,userPrincipal.getAuthorities()

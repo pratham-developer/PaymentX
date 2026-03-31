@@ -10,10 +10,11 @@ import java.util.UUID;
 @Entity
 @Getter @Setter
 @AllArgsConstructor @NoArgsConstructor
-@Table(indexes = {
-        @Index(name = "idx_session_user", columnList = "user_id"),
-        @Index(name = "idx_session_token", columnList = "refreshTokenHash")
-})
+@Table(
+        indexes = {
+                @Index(name = "idx_session_user_family", columnList = "user_id,familyId")
+        }
+)
 @Builder
 public class Session {
     @Id

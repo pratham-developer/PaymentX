@@ -23,7 +23,6 @@ public class AuthController {
     public ResponseEntity<TokenResponse> login(@Valid @RequestBody GoogleLoginRequest request) {
         log.info("Attempting to process login request");
         return ResponseEntity.ok(authService.login(request));
-        
     }
 
     //only students can access

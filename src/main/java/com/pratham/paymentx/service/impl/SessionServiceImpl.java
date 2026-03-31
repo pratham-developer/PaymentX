@@ -6,10 +6,12 @@ import com.pratham.paymentx.entity.Session;
 import com.pratham.paymentx.entity.User;
 import com.pratham.paymentx.exception.InvalidTokenException;
 import com.pratham.paymentx.exception.ResourceNotFoundException;
+import com.pratham.paymentx.projection.SessionWrapper;
 import com.pratham.paymentx.repository.SessionRepository;
 import com.pratham.paymentx.repository.UserRepository;
 import com.pratham.paymentx.security.JwtProvider;
 import com.pratham.paymentx.service.SessionService;
+import com.pratham.paymentx.service.TokenBlacklistService;
 import com.pratham.paymentx.util.HashUtil;
 import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +34,7 @@ public class SessionServiceImpl implements SessionService {
     private final UserRepository userRepository;
     private final JwtProvider jwtProvider;
     private final HashUtil hashUtil;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Value("${auth.sessions-allowed:1}")
     private int SESSIONS_ALLOWED;
@@ -53,10 +56,9 @@ public class SessionServiceImpl implements SessionService {
         if (sessionCountToRemove > 0) {
             log.info("Session limit exceeded for user {}. Removing {} oldest session(s).", userId, sessionCountToRemove);
             List<Session> sessionsToDelete = sessionsListForUser.subList(0, sessionCountToRemove);
+            tokenBlacklistService.blacklistAllInBatch(sessionsToDelete); // Redis first
             // executes query directly on db, bypassing the persistence context
-            sessionRepository.deleteAllInBatch(sessionsToDelete);
-
-            // TODO: [REDIS BLACKLIST] Blacklist these tokens in Redis
+            sessionRepository.deleteAllInBatch(sessionsToDelete);        // then DB
         }
 
         // create new session
@@ -102,13 +104,21 @@ public class SessionServiceImpl implements SessionService {
         //if not matching then it means old token is used
         //because inside token, sessionId and userId are same throughout the session
         //actually they are logically bound to be same for the same session
-        if(!refreshTokenHash.equals(session.getRefreshTokenHash())){
-            //if last refresh was more than 30 seconds ago
-            if(!session.getLastUsedAt().isAfter(LocalDateTime.now().minusSeconds(30))){
-                //likely a token re-use attack
-                //delete all sessions for user
+        if (!refreshTokenHash.equals(session.getRefreshTokenHash())) {
+            boolean withinGrace = session.getLastUsedAt().isAfter(LocalDateTime.now().minusSeconds(5));
+            if (withinGrace) {
+                // Likely a legitimate network retry — the real token was just rotated.
+                // Log it for visibility but don't nuke the session.
+                log.warn("Refresh token hash mismatch within grace window for userId={} sessionId={}. " +
+                        "Possible network retry.", userId, sessionId);
+            } else {
+                // Hash mismatch outside grace window = old token presented = reuse attack.
+                log.warn("SECURITY: Refresh token reuse detected for userId={} sessionId={}. " +
+                        "Invalidating all sessions.", userId, sessionId);
+                // Redis first, then DB (per fix #1)
+                List<SessionWrapper> sessionWrappers = sessionRepository.findSessionIdAndFamilyId(userId);
+                tokenBlacklistService.blacklistAllInBatch(userId, sessionWrappers);
                 sessionRepository.deleteAllSessionsForUser(userId);
-                //TODO: blacklist all active tokens (userId:sessionId:familyId) for the user in redis
             }
             return Optional.empty();
         }
@@ -120,13 +130,14 @@ public class SessionServiceImpl implements SessionService {
         String newRefreshToken = jwtProvider.generateRefreshToken(session.getUser(),sessionId);
         String newAccessToken = jwtProvider.generateAccessToken(session.getUser(),sessionId,newFamilyId);
 
-        //update session
-        session.setFamilyId(newFamilyId);
+
+        tokenBlacklistService.blacklist(userId, sessionId, oldFamilyId); // Redis first
+
+        session.setFamilyId(newFamilyId);  //then save to db
         session.setRefreshTokenHash(hashUtil.hash(newRefreshToken));
         session.setLastUsedAt(LocalDateTime.now());
         sessionRepository.saveAndFlush(session);
 
-        //TODO: blacklist userId:sessionId:oldFamilyId in redis
         TokenResponse tokenResponse = TokenResponse.builder()
                 .refreshToken(newRefreshToken)
                 .accessToken(newAccessToken)
@@ -149,8 +160,10 @@ public class SessionServiceImpl implements SessionService {
                 return;
             }
             Session session = optional.get();
-            //TODO: blacklist userId:sessionId:session.getFamilyId():
+            UUID familyId = session.getFamilyId(); // capture before session is modified
+            tokenBlacklistService.blacklist(userId, sessionId, familyId); // Redis first
             sessionRepository.delete(session);
+            sessionRepository.flush();
         } catch (JwtException e) {
             // The token is already dead. Ignore the error so the frontend clears its state.
             log.info("Logout attempted with invalid or expired token. Treating as success.");

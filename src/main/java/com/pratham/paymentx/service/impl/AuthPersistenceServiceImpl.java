@@ -13,7 +13,6 @@ import com.pratham.paymentx.service.AuthPersistenceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,17 +58,9 @@ public class AuthPersistenceServiceImpl implements AuthPersistenceService {
             return user.getId();
         }
 
-        // create new user with concurrency protection
-        try {
-            log.info("Provisioning new user account for: {}", email);
-            return buildAndSaveNewUser(googleAccount);
-        } catch (DataIntegrityViolationException e) {
-            // race condition occurred
-            // another thread created this user after our checks
-            log.warn("Concurrent insert detected for email {}. Recovering gracefully.", email);
-            return userRepository.findIdByEmail(email)
-                    .orElseThrow(() -> new IllegalStateException("User must exist after DataIntegrityViolation"));
-        }
+        // create new user
+        log.info("Provisioning new user account for: {}", email);
+        return buildAndSaveNewUser(googleAccount);
     }
 
     private UUID buildAndSaveNewUser(GoogleAccount googleAccount) {

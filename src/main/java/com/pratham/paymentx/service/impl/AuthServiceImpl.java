@@ -23,6 +23,7 @@ import com.pratham.paymentx.service.SessionService;
 import com.pratham.paymentx.util.EncryptionUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,8 +54,18 @@ public class AuthServiceImpl implements AuthService {
         // This acts as the shield to protect the db connection pool
         log.info("Processing a login request");
         GoogleAccount googleAccount = googleIdentityProvider.verifyGoogleId(request.getIdToken());
-        //independent transaction runs for user
-        UUID userId = authPersistenceService.resolveAndPersistUser(googleAccount);
+        UUID userId;
+        try {
+            //this runs in its own isolated transaction
+            userId = authPersistenceService.resolveAndPersistUser(googleAccount);
+        } catch (DataIntegrityViolationException e) {
+            //the inner transaction rolled back gracefully.
+            //we can now safely run a fresh read query to get the ID.
+            log.warn("Concurrent insert detected for email {}. Recovering.", googleAccount.getEmail());
+            userId = userRepository.findIdByEmail(googleAccount.getEmail())
+                    .orElseThrow(() -> new IllegalStateException("User must exist after DataIntegrityViolation"));
+        }
+
         //another independent transaction runs for session creation
         TokenResponse tokenResponse = sessionService.createSession(userId);
         log.info("Successfully processed the login request for userId: {}",userId);

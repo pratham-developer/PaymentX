@@ -18,11 +18,13 @@ public class UserPrincipal implements UserDetails {
     private final UUID userId;
     private final String email;
     private final Role role;
+    private final UUID sessionId;
 
     UserPrincipal(ParsedAccessToken parsedAccessToken){
         this.userId = parsedAccessToken.getUserId();
         this.email = parsedAccessToken.getEmail();
         this.role = parsedAccessToken.getRole();
+        this.sessionId = parsedAccessToken.getSessionId();
     }
 
     @Override
