@@ -16,6 +16,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @Builder
 public class MerchantProfile {
+
     @Id
     private UUID id;
 
@@ -30,22 +31,30 @@ public class MerchantProfile {
     @Column(length = 20)
     private String phone;
 
-    private String razorpayContactId;
-    private String razorpayFundId;
+    /*
+     * The ID we register with Cashfree when creating a beneficiary.
+     * Format: "MERCHANT-{userId}" — stable and unique per merchant.
+     *
+     * This doubles as our idempotency key for the beneficiary creation call:
+     * if the admin approval job retries (e.g. after a crash), Cashfree returns
+     * 409 beneficiary_id_already_exists and we skip creation, move straight to
+     * checking beneficiary status.
+     *
+     * Set during the admin approval flow (PROCESSING → BENEFICIARY_CREATED).
+     * Nullified if the merchant enters invalid bank details and must re-onboard
+     * (status → QUARANTINED, profileCompleted → false).
+     *
+     * updatable = false is intentionally NOT set here — we need to null it out
+     * on quarantine so the merchant can re-register a corrected beneficiary.
+     */
+    @Column(unique = true, length = 100)
+    private String cashfreeBeneficiaryId;
 
     @Enumerated(value = EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
     private MerchantGatewayStatus gatewayStatus = MerchantGatewayStatus.PENDING;
 
-    //will be mapped to Razorpay contact creation reference id
-    //Razorpay ensures if one reference id has already created a contact
-    //so on retries with the same reference id, Razorpay will directly return the previously created contact
-    //instead of re-creating one again
-    @Column(unique = true, updatable = false, length = 100)
-    private String idempotencyKey;
-
-    //encrypted details
     @Column(columnDefinition = "bytea")
     private byte[] encryptedGstTaxId;
 
@@ -55,6 +64,11 @@ public class MerchantProfile {
     @Column(columnDefinition = "bytea")
     private byte[] encryptedIfsc;
 
+    /*
+     * Name of the bank account holder as provided by the merchant.
+     * Sent to Cashfree as beneficiary_name.
+     * Not encrypted — not sensitive on its own.
+     */
     @Column(length = 100)
     private String beneficiaryName;
 
@@ -65,4 +79,3 @@ public class MerchantProfile {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 }
-
