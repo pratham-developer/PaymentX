@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Payout Failed</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: #f4f4f5; font-family: Arial, sans-serif; }
+        .wrapper { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .header { background-color: #1a1a2e; padding: 28px 32px; }
+        .header h1 { margin: 0; color: #ffffff; font-size: 20px; letter-spacing: 0.5px; }
+        .body { padding: 32px; color: #374151; font-size: 15px; line-height: 1.7; }
+        .body p { margin: 0 0 16px; }
+        .alert-box { background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 14px 18px; border-radius: 4px; margin-bottom: 20px; color: #991b1b; font-weight: 600; }
+        .amount-row { background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 14px 18px; margin-bottom: 20px; font-size: 16px; }
+        .amount-row span { font-weight: 700; color: #111827; }
+        .action-btn { display: inline-block; margin-top: 8px; padding: 12px 28px; background-color: #4f46e5; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 15px; font-weight: 600; }
+        .footer { background-color: #f9fafb; padding: 20px 32px; text-align: center; font-size: 12px; color: #9ca3af; border-top: 1px solid #e5e7eb; }
+    </style>
+</head>
+<body>
+<div class="wrapper">
+    <div class="header">
+        <h1>PaymentX</h1>
+    </div>
+    <div class="body">
+        <p>Hi <strong>{{BUSINESS_NAME}}</strong>,</p>
+        <div class="alert-box">⚠ Your scheduled payout could not be processed.</div>
+        <div class="amount-row">Payout Amount: <span>₹{{AMOUNT}}</span></div>
+        <p>The funds have been returned to your available wallet balance. Your payout account has been flagged and future payouts are paused until you update your bank details.</p>
+        <p>Please log in to PaymentX and re-enter your correct bank account information to resume payouts.</p>
+        <a class="action-btn" href="{{DASHBOARD_URL}}">Update Bank Details</a>
+        <p style="margin-top: 24px;">If you believe this is an error or need help, please reach out to our support team.</p>
+        <p>— The PaymentX Team</p>
+    </div>
+    <div class="footer">
+        &copy; 2025 PaymentX. This is an automated message — please do not reply directly to this email.
+    </div>
+</div>
+</body>
+</html>
