@@ -5,6 +5,7 @@ import brevoModel.SendSmtpEmail;
 import brevoModel.SendSmtpEmailSender;
 import brevoModel.SendSmtpEmailTo;
 import com.pratham.paymentx.config.brevo.BrevoProperties;
+import com.pratham.paymentx.service.EmailService;
 import com.pratham.paymentx.util.EmailTemplateLoader;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +18,7 @@ import java.util.Map;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class EmailServiceImpl {
+public class EmailServiceImpl implements EmailService {
 
     private final TransactionalEmailsApi transactionalEmailsApi;
     private final BrevoProperties brevoProperties;
@@ -28,6 +29,7 @@ public class EmailServiceImpl {
      * during admin approval. Profile has been reset — they must re-enter correct
      * bank details on next dashboard visit.
      */
+    @Override
     @Async
     public void sendBankVerificationFailureEmail(String toEmail, String businessName) {
         String html = templateLoader.load(
@@ -45,6 +47,7 @@ public class EmailServiceImpl {
      * Notifies the merchant that a scheduled payout failed or was reversed.
      * Wallet funds have been restored; account is quarantined until re-onboarded.
      */
+    @Override
     @Async
     public void sendPayoutFailureEmail(String toEmail, String businessName, String amount) {
         String html = templateLoader.load(
