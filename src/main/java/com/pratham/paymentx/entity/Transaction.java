@@ -8,7 +8,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -21,14 +21,14 @@ public class Transaction {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sender_wallet_id", nullable = false)
+    @JoinColumn(name = "sender_wallet_id")
     private Wallet senderWallet;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "receiver_wallet_id", nullable = false)
+    @JoinColumn(name = "receiver_wallet_id")
     private Wallet receiverWallet;
 
-    @Column(precision = 19, scale = 4, nullable = false)
+    @Column(precision = 19, scale = 2, nullable = false)
     private BigDecimal amount;
 
     @Enumerated(value = EnumType.STRING)
@@ -49,8 +49,8 @@ public class Transaction {
 
     @CreationTimestamp
     @Column(updatable = false)
-    private LocalDateTime createdAt;
+    private OffsetDateTime createdAt;
 
     @UpdateTimestamp
-    private LocalDateTime updatedAt;
+    private OffsetDateTime updatedAt;
 }

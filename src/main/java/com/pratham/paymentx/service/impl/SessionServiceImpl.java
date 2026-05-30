@@ -20,7 +20,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -73,7 +73,7 @@ public class SessionServiceImpl implements SessionService {
                 .user(user)
                 .refreshTokenHash(refreshTokenHash)
                 .familyId(familyId)
-                .lastUsedAt(LocalDateTime.now())
+                .lastUsedAt(OffsetDateTime.now())
                 .build();
 
         sessionRepository.save(newSession);
@@ -105,7 +105,7 @@ public class SessionServiceImpl implements SessionService {
         //because inside token, sessionId and userId are same throughout the session
         //actually they are logically bound to be same for the same session
         if (!refreshTokenHash.equals(session.getRefreshTokenHash())) {
-            boolean withinGrace = session.getLastUsedAt().isAfter(LocalDateTime.now().minusSeconds(5));
+            boolean withinGrace = session.getLastUsedAt().isAfter(OffsetDateTime.now().minusSeconds(5));
             if (withinGrace) {
                 // Likely a legitimate network retry — the real token was just rotated.
                 // Log it for visibility but don't nuke the session.
@@ -135,7 +135,7 @@ public class SessionServiceImpl implements SessionService {
 
         session.setFamilyId(newFamilyId);  //then save to db
         session.setRefreshTokenHash(hashUtil.hash(newRefreshToken));
-        session.setLastUsedAt(LocalDateTime.now());
+        session.setLastUsedAt(OffsetDateTime.now());
         sessionRepository.saveAndFlush(session);
 
         TokenResponse tokenResponse = TokenResponse.builder()

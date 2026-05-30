@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -35,9 +35,9 @@ public class Session {
     private UUID familyId;
 
     @Column(nullable = false)
-    private LocalDateTime lastUsedAt;
+    private OffsetDateTime lastUsedAt;
 
     @CreationTimestamp
     @Column(updatable = false)
-    private LocalDateTime createdAt;
+    private OffsetDateTime createdAt;
 }

@@ -22,10 +22,15 @@ public class RabbitMQConfig {
     // ─── Routing Keys ─────────────────────────────────────────────────────────
     public static final String MERCHANT_APPROVAL_ROUTING_KEY = "merchant.approval";
     public static final String MERCHANT_APPROVAL_DLQ_ROUTING_KEY = "merchant.approval.dead";
+    public static final String TOPUP_FULFILLMENT_ROUTING_KEY = "topup.fulfillment";
+    public static final String TOPUP_FULFILLMENT_DLQ_ROUTING_KEY = "topup.fulfillment.dead";
 
     // ─── Queue Names ──────────────────────────────────────────────────────────
     public static final String MERCHANT_APPROVAL_QUEUE = "merchant.approval";
     public static final String MERCHANT_APPROVAL_DLQ = "merchant.approval.dead";
+    public static final String TOPUP_FULFILLMENT_QUEUE = "topup.fulfillment";
+    public static final String TOPUP_FULFILLMENT_DLQ = "topup.fulfillment.dead";
+
 
     // ─── Retry Config ─────────────────────────────────────────────────────────
     private static final int MAX_ATTEMPTS = 3;
@@ -63,6 +68,19 @@ public class RabbitMQConfig {
         return QueueBuilder.durable(MERCHANT_APPROVAL_DLQ).build();
     }
 
+    @Bean
+    public Queue topupFulfillmentQueue() {
+        return QueueBuilder.durable(TOPUP_FULFILLMENT_QUEUE)
+                .withArgument("x-dead-letter-exchange", DLX_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", TOPUP_FULFILLMENT_DLQ_ROUTING_KEY)
+                .build();
+    }
+
+    @Bean
+    public Queue topupFulfillmentDlq() {
+        return QueueBuilder.durable(TOPUP_FULFILLMENT_DLQ).build();
+    }
+
     // ─── Bindings ─────────────────────────────────────────────────────────────
     @Bean
     public Binding merchantApprovalBinding() {
@@ -78,6 +96,22 @@ public class RabbitMQConfig {
                 .bind(merchantApprovalDlq())
                 .to(dlxExchange())
                 .with(MERCHANT_APPROVAL_DLQ_ROUTING_KEY);
+    }
+
+    @Bean
+    public Binding topupFulfillmentBinding() {
+        return BindingBuilder
+                .bind(topupFulfillmentQueue())
+                .to(eventsExchange())
+                .with(TOPUP_FULFILLMENT_ROUTING_KEY);
+    }
+
+    @Bean
+    public Binding topupFulfillmentDlqBinding() {
+        return BindingBuilder
+                .bind(topupFulfillmentDlq())
+                .to(dlxExchange())
+                .with(TOPUP_FULFILLMENT_DLQ_ROUTING_KEY);
     }
 
     // ─── Message Converter ────────────────────────────────────────────────────

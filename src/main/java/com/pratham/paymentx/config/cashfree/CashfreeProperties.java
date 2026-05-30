@@ -4,13 +4,18 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "cashfree")
 public record CashfreeProperties(
-        String clientId,
-        String clientSecret,
         String environment,
-        Payout payout
+        Payout payout,
+        PaymentGateway paymentGateway
 ) {
+
     public record Payout(
-            String webhookSecret,
-            java.util.List<String> allowedIps
+            String clientId,
+            String clientSecret
+    ) {}
+
+    public record PaymentGateway(
+            String clientId,
+            String clientSecret
     ) {}
 }

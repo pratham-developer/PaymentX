@@ -2,17 +2,17 @@ package com.pratham.paymentx.advice;
 
 import lombok.Data;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Data
 public class ApiResponse<T> {
 
-    private LocalDateTime timeStamp;
+    private OffsetDateTime timeStamp;
     private T data;
     private ApiError error;
 
     public ApiResponse() {
-        this.timeStamp = LocalDateTime.now();
+        this.timeStamp = OffsetDateTime.now();
     }
 
     public ApiResponse(T data) {

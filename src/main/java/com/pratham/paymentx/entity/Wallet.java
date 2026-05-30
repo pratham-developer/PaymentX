@@ -7,7 +7,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -40,11 +40,11 @@ public class Wallet {
      * Total balance (for display) = availableBalance + processingBalance.
      * Computed on the fly in the DTO — never stored as a separate column.
      */
-    @Column(precision = 19, scale = 4, nullable = false)
+    @Column(precision = 19, scale = 2, nullable = false)
     @Builder.Default
     private BigDecimal availableBalance = BigDecimal.ZERO;
 
-    @Column(precision = 19, scale = 4, nullable = false)
+    @Column(precision = 19, scale = 2, nullable = false)
     @Builder.Default
     private BigDecimal processingBalance = BigDecimal.ZERO;
 
@@ -78,8 +78,8 @@ public class Wallet {
 
     @CreationTimestamp
     @Column(updatable = false)
-    private LocalDateTime createdAt;
+    private OffsetDateTime createdAt;
 
     @UpdateTimestamp
-    private LocalDateTime updatedAt;
+    private OffsetDateTime updatedAt;
 }

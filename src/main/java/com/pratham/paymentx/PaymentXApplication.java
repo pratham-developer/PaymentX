@@ -1,10 +1,13 @@
 package com.pratham.paymentx;
 
+import jakarta.annotation.PostConstruct;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.scheduling.annotation.EnableAsync;
+
+import java.util.TimeZone;
 
 @ConfigurationPropertiesScan
 @SpringBootApplication(exclude = {UserDetailsServiceAutoConfiguration.class})
@@ -18,9 +21,16 @@ import org.springframework.scheduling.annotation.EnableAsync;
 @EnableAsync
 public class PaymentXApplication {
 
+    @PostConstruct
+    public void init() {
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+    }
+
     public static void main(String[] args) {
         System.setProperty("java.net.preferIPv4Stack", "true");
         SpringApplication.run(PaymentXApplication.class, args);
     }
+
+
 
 }
