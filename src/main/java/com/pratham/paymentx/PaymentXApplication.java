@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.util.TimeZone;
 
@@ -19,6 +20,7 @@ import java.util.TimeZone;
   so we do not require the default in-memory user or UserDetailsService.
  */
 @EnableAsync
+@EnableScheduling
 public class PaymentXApplication {
 
     @PostConstruct
@@ -30,7 +32,4 @@ public class PaymentXApplication {
         System.setProperty("java.net.preferIPv4Stack", "true");
         SpringApplication.run(PaymentXApplication.class, args);
     }
-
-
-
 }

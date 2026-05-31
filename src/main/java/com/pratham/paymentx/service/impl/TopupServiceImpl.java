@@ -1,9 +1,10 @@
 package com.pratham.paymentx.service.impl;
 
-import com.cashfree.pg.ApiResponse;
 import com.cashfree.pg.Cashfree;
+import com.cashfree.pg.ApiResponse;
 import com.cashfree.pg.model.CreateOrderRequest;
 import com.cashfree.pg.model.CustomerDetails;
+import com.cashfree.pg.model.OrderCreateRefundRequest;
 import com.cashfree.pg.model.OrderEntity;
 import com.pratham.paymentx.dto.transaction.TopupInitiateRequest;
 import com.pratham.paymentx.dto.transaction.TopupInitiateResponse;
@@ -12,6 +13,7 @@ import com.pratham.paymentx.entity.Transaction;
 import com.pratham.paymentx.entity.Wallet;
 import com.pratham.paymentx.enums.TransactionStatus;
 import com.pratham.paymentx.enums.TransactionType;
+import com.pratham.paymentx.exception.BadRequestException;
 import com.pratham.paymentx.exception.ResourceNotFoundException;
 import com.pratham.paymentx.repository.StudentProfileRepository;
 import com.pratham.paymentx.repository.TransactionRepository;
@@ -19,33 +21,53 @@ import com.pratham.paymentx.repository.WalletRepository;
 import com.pratham.paymentx.service.TopupService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class TopupServiceImpl implements TopupService {
+public class TopupServiceImpl implements TopupService, ApplicationContextAware {
 
     private final TransactionRepository transactionRepository;
     private final WalletRepository walletRepository;
     private final StudentProfileRepository studentProfileRepository;
     private final Cashfree cashfree;
 
+    private ApplicationContext applicationContext;
+
     @Override
-    @Transactional
+    public void setApplicationContext(@NotNull ApplicationContext applicationContext) {
+        this.applicationContext = applicationContext;
+    }
+
+    private TopupService self() {
+        return applicationContext.getBean(TopupService.class);
+    }
+
+    @Override
+    // NO @Transactional: Orchestrator holds no DB connections during HTTP calls.
     public TopupInitiateResponse initiateTopup(UUID userId, TopupInitiateRequest request) {
 
-        // 1. TRUE IDEMPOTENCY CHECK
+        // 1. FAST READ: Idempotency Check
         Optional<Transaction> existingTx = transactionRepository.findByIdempotencyKey(request.getIdempotencyKey());
         if (existingTx.isPresent()) {
             Transaction tx = existingTx.get();
-            log.info("Idempotent request detected. Recovering top-up session for txId: {}", tx.getId());
+            if (tx.getTransactionStatus() != TransactionStatus.PENDING) {
+                throw new BadRequestException("This top-up request has already been finalized.");
+            }
 
+            log.info("Idempotent request detected. Recovering top-up session for txId: {}", tx.getId());
             try {
                 ApiResponse<OrderEntity> fetchResponse = cashfree.PGFetchOrder(tx.getId().toString(), null, null, null);
                 return TopupInitiateResponse.builder()
@@ -53,24 +75,90 @@ public class TopupServiceImpl implements TopupService {
                         .paymentSessionId(fetchResponse.getData().getPaymentSessionId())
                         .build();
             } catch (Exception e) {
-                log.error("Failed to fetch existing order from Cashfree for txId: {}", tx.getId(), e);
                 throw new RuntimeException("Payment Gateway unavailable. Please try again later.", e);
             }
         }
 
-        log.info("Initiating new topup for userId: {} with amount: {}", userId, request.getAmount());
+        // 2. ISOLATED TRANSACTION: Pre-commit DB Record
+        Transaction transaction = self().createPendingTopupRecord(userId, request);
+        UUID transactionId = transaction.getId();
 
+        // 3. NETWORK I/O: Call Cashfree
+        try {
+            StudentProfile profile = studentProfileRepository.findByUserId(userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Student profile not found"));
+
+            CustomerDetails customerDetails = new CustomerDetails();
+            customerDetails.setCustomerId(userId.toString());
+            customerDetails.setCustomerPhone(profile.getPhone());
+            customerDetails.setCustomerName(profile.getFullName());
+
+            CreateOrderRequest orderRequest = new CreateOrderRequest();
+            orderRequest.setOrderId(transactionId.toString());
+            orderRequest.setOrderAmount(request.getAmount());
+            orderRequest.setOrderCurrency("INR");
+            orderRequest.setCustomerDetails(customerDetails);
+
+            ApiResponse<OrderEntity> response = cashfree.PGCreateOrder(orderRequest, null, null, null);
+            return TopupInitiateResponse.builder()
+                    .transactionId(transactionId)
+                    .paymentSessionId(response.getData().getPaymentSessionId())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Failed to initiate Cashfree order for txId: {}. Marking as FAILED locally.", transactionId, e);
+            // Self-heal: Fail it locally so it doesn't stay PENDING forever
+            self().settleFailedTopup(transactionId);
+            throw new RuntimeException("Payment Gateway unavailable. Please try again later.", e);
+        }
+    }
+
+    @Override
+    // NO @Transactional: Orchestrator logic only
+    public void executeFulfillmentEngine(UUID transactionId) {
+        // 1. FAST READ: Ensure it's still pending before bothering Cashfree
+        Transaction preCheck = transactionRepository.findById(transactionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
+        if (preCheck.getTransactionStatus() != TransactionStatus.PENDING) {
+            return;
+        }
+
+        // 2. NETWORK I/O: Fetch actual status
+        String gatewayStatus;
+        try {
+            ApiResponse<OrderEntity> response = cashfree.PGFetchOrder(transactionId.toString(), null, null, null);
+            gatewayStatus = response.getData().getOrderStatus();
+        } catch (Exception e) {
+            log.error("Fulfillment Engine failed to fetch Cashfree order txId: {}", transactionId, e);
+            throw new RuntimeException("Upstream gateway error", e);
+        }
+
+        // 3. STATE ROUTER -> Trigger Isolated DB Locks
+        switch (gatewayStatus != null ? gatewayStatus.toUpperCase() : "UNKNOWN") {
+            case "PAID" -> {
+                boolean ghostWalletDetected = self().settlePaidTopup(transactionId);
+
+                // 4. POST-LOCK NETWORK I/O: If wallet was missing, trigger refund cleanly
+                if (ghostWalletDetected) {
+                    executeGhostWalletRefund(transactionId, preCheck.getAmount());
+                }
+            }
+            case "EXPIRED", "TERMINATED" -> self().settleFailedTopup(transactionId);
+            case "ACTIVE" -> log.info("Order txId={} is still ACTIVE. Awaiting completion.", transactionId);
+        }
+    }
+
+    // ─── Isolated Transactional Boundaries ────────────────────────────────────
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Transaction createPendingTopupRecord(UUID userId, TopupInitiateRequest request) {
         Wallet wallet = walletRepository.findByUserId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
 
-        StudentProfile profile = studentProfileRepository.findByUserId(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Student profile not found"));
-
-        // 2. CREATE PENDING INTENT
         Transaction transaction = Transaction.builder()
-                // Do NOT set .id() manually. Let Hibernate generate it!
                 .receiverWallet(wallet)
-                .senderWallet(null) // External funding source
+                .senderWallet(null) // Top-ups do not have a sender wallet
                 .amount(request.getAmount())
                 .transactionType(TransactionType.TOPUP)
                 .transactionStatus(TransactionStatus.PENDING)
@@ -78,92 +166,94 @@ public class TopupServiceImpl implements TopupService {
                 .build();
 
         try {
-            // Save it first so Hibernate generates and populates the UUID
-            transaction = transactionRepository.saveAndFlush(transaction);
+            return transactionRepository.saveAndFlush(transaction);
         } catch (DataIntegrityViolationException e) {
-            log.warn("Concurrent duplicate topup initiation blocked for idempotencyKey: {}", request.getIdempotencyKey());
-            throw new IllegalStateException("A request with this ID is currently processing. Please refresh.");
-        }
-
-        // Extract the freshly generated DB ID to use as the Cashfree Order ID
-        UUID transactionId = transaction.getId();
-
-        // 3. BUILD CASHFREE ORDER
-        CustomerDetails customerDetails = new CustomerDetails();
-        customerDetails.setCustomerId(userId.toString());
-        customerDetails.setCustomerPhone(profile.getPhone());
-        customerDetails.setCustomerName(profile.getFullName());
-
-        CreateOrderRequest orderRequest = new CreateOrderRequest();
-        orderRequest.setOrderId(transactionId.toString());
-        orderRequest.setOrderAmount(request.getAmount());
-        orderRequest.setOrderCurrency("INR");
-        orderRequest.setCustomerDetails(customerDetails);
-
-        try {
-            // 4. INITIATE GATEWAY SESSION
-            ApiResponse<OrderEntity> response = cashfree.PGCreateOrder(orderRequest, null, null, null);
-
-            return TopupInitiateResponse.builder()
-                    .transactionId(transactionId)
-                    .paymentSessionId(response.getData().getPaymentSessionId())
-                    .build();
-
-        } catch (Exception e) {
-            log.error("Failed to initiate Cashfree order for txId: {}", transactionId, e);
-            throw new RuntimeException("Payment Gateway unavailable. Please try again later.", e);
+            throw new IllegalStateException("A request with this ID is currently processing.");
         }
     }
 
     @Override
-    @Transactional
-    public void executeFulfillmentEngine(UUID transactionId) {
-        log.info("Fulfillment Engine triggered for txId: {}", transactionId);
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean settlePaidTopup(UUID transactionId) {
+        // 1. Lock the transaction row
+        Transaction tx = transactionRepository.findByIdAndLock(transactionId).orElseThrow();
 
-        // 1. LOCK #1: TRANSACTION (GATEKEEPER)
-        Transaction transaction = transactionRepository.findByIdAndLock(transactionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
-
-        // 2. IDEMPOTENCY EXIT
-        if (transaction.getTransactionStatus() != TransactionStatus.PENDING) {
-            log.info("Topup already processed for txId: {}. Current Status: {}",
-                    transactionId, transaction.getTransactionStatus());
-            return;
+        // Double check status under lock to ensure Webhook/Cron didn't race each other
+        if (tx.getTransactionStatus() != TransactionStatus.PENDING) {
+            return false;
         }
 
+        // 2. Ghost Wallet Defense Part 1: Was the relation completely severed/nulled?
+        if (tx.getReceiverWallet() == null) {
+            log.error("CRITICAL: Receiver wallet relation is NULL for txId={}. Failing transaction locally.", transactionId);
+            tx.setTransactionStatus(TransactionStatus.FAILED);
+            transactionRepository.save(tx);
+            return true; // Signal to orchestrator that a network refund is needed
+        }
+
+        // 3. Lock the wallet row (Strict ordering: Tx -> Wallet)
+        Optional<Wallet> walletOpt = walletRepository.findByIdAndLock(tx.getReceiverWallet().getId());
+
+        // Ghost Wallet Defense Part 2: Does the ID exist, but the wallet row is gone?
+        if (walletOpt.isEmpty()) {
+            log.error("CRITICAL: Receiver wallet row missing for txId={}. Failing transaction locally.", transactionId);
+            tx.setTransactionStatus(TransactionStatus.FAILED);
+            transactionRepository.save(tx);
+            return true; // Signal to orchestrator that a network refund is needed
+        }
+
+        // 4. Ledger Update
+        Wallet receiverWallet = walletOpt.get();
+        receiverWallet.setAvailableBalance(receiverWallet.getAvailableBalance().add(tx.getAmount()));
+        tx.setTransactionStatus(TransactionStatus.SUCCESS);
+
+        walletRepository.save(receiverWallet);
+        transactionRepository.save(tx);
+        log.info("SUCCESS: Fulfilled top-up for txId={}. Credited ₹{}", transactionId, tx.getAmount());
+
+        return false; // No refund needed
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void settleFailedTopup(UUID transactionId) {
+        Transaction tx = transactionRepository.findByIdAndLock(transactionId).orElseThrow();
+        if (tx.getTransactionStatus() == TransactionStatus.PENDING) {
+            tx.setTransactionStatus(TransactionStatus.FAILED);
+            transactionRepository.save(tx);
+            log.info("FAILED: Top-up marked as failed. txId={} expired or dropped.", transactionId);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void verifyTransactionOwnership(UUID transactionId, UUID userId) {
+        Transaction transaction = transactionRepository.findById(transactionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
+
+        if (!transaction.getReceiverWallet().getUser().getId().equals(userId)) {
+            log.warn("Security Alert: User {} attempted to verify tx {} belonging to someone else.", userId, transactionId);
+            throw new AccessDeniedException("You do not have permission to verify this transaction.");
+        }
+    }
+
+    // ─── Helper Methods ───────────────────────────────────────────────────────
+
+    private void executeGhostWalletRefund(UUID transactionId, BigDecimal amount) {
+        log.warn("Initiating automatic gateway refund for Ghost Wallet txId={}", transactionId);
         try {
-            // 3. GATEWAY VERIFICATION (SOURCE OF TRUTH)
-            ApiResponse<OrderEntity> response = cashfree.PGFetchOrder(transactionId.toString(), null, null, null);
-            String gatewayStatus = response.getData().getOrderStatus();
+            OrderCreateRefundRequest refundRequest = new OrderCreateRefundRequest();
+            refundRequest.setRefundAmount(amount);
+            refundRequest.setRefundId("REF_" + transactionId.toString().replace("-", "").substring(0, 20));
+            refundRequest.setRefundNote("User wallet missing prior to fulfillment.");
+            refundRequest.setRefundSpeed(OrderCreateRefundRequest.RefundSpeedEnum.INSTANT);
 
-            log.info("Gateway status for txId: {} is {}", transactionId, gatewayStatus);
+            cashfree.PGOrderCreateRefund(transactionId.toString(), refundRequest, null, null, null);
+            log.info("Successfully initiated automatic refund for orphaned txId={}", transactionId);
 
-            switch (gatewayStatus != null ? gatewayStatus.toUpperCase() : "UNKNOWN") {
-                case "PAID" -> {
-                    // 4. LOCK #2: WALLET (DEADLOCK PREVENTION - Always ordered after Transaction)
-                    Wallet receiverWallet = walletRepository.findByIdAndLock(transaction.getReceiverWallet().getId())
-                            .orElseThrow(() -> new IllegalStateException("Receiver wallet disappeared"));
-
-                    // Credit the account
-                    receiverWallet.setAvailableBalance(receiverWallet.getAvailableBalance().add(transaction.getAmount()));
-                    transaction.setTransactionStatus(TransactionStatus.SUCCESS);
-
-                    walletRepository.save(receiverWallet);
-                    transactionRepository.save(transaction);
-
-                    log.info("SUCCESS: Fulfilled top-up for txId={}. Credited ₹{}", transactionId, transaction.getAmount());
-                }
-                case "EXPIRED", "TERMINATED" -> {
-                    transaction.setTransactionStatus(TransactionStatus.FAILED);
-                    transactionRepository.save(transaction);
-                    log.warn("FAILED: Top-up marked as terminal. txId={} expired at gateway.", transactionId);
-                }
-                case "ACTIVE" -> log.info("PENDING: Top-up txId={} is still awaiting customer action.", transactionId);
-                default -> log.warn("UNKNOWN: Unhandled gateway status '{}' for txId={}", gatewayStatus, transactionId);
-            }
         } catch (Exception e) {
-            log.error("Fulfillment Engine failed to fetch Cashfree order status for txId: {}", transactionId, e);
-            throw new RuntimeException("Upstream gateway error during fulfillment check", e);
+            log.error("URGENT: Failed to process refund for orphaned txId={}. Retrying...", transactionId, e);
+            throw new RuntimeException("Auto-Refund failed. Retrying in background worker.", e);
         }
     }
 }

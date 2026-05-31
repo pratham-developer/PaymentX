@@ -72,6 +72,9 @@ public class MerchantProfile {
     @Column(length = 100)
     private String beneficiaryName;
 
+    @Column(unique = true, length = 64)
+    private String bankAccountHash;
+
     @CreationTimestamp
     @Column(updatable = false)
     private OffsetDateTime createdAt;

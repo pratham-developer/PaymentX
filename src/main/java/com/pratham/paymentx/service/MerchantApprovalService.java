@@ -1,16 +1,10 @@
 package com.pratham.paymentx.service;
 
-import com.pratham.paymentx.entity.MerchantProfile;
-
 import java.util.UUID;
 
 public interface MerchantApprovalService {
-
     void processApproval(UUID merchantId);
-
-    void transitionToProcessing(MerchantProfile merchant);
-
-    void activateMerchant(MerchantProfile merchant);
-
-    void failMerchant(MerchantProfile merchant);
+    String transitionToProcessing(UUID merchantId);
+    void activateMerchant(UUID merchantId);
+    void failMerchant(UUID merchantId);
 }

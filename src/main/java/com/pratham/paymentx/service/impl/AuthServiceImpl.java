@@ -21,6 +21,7 @@ import com.pratham.paymentx.service.AuthPersistenceService;
 import com.pratham.paymentx.service.AuthService;
 import com.pratham.paymentx.service.SessionService;
 import com.pratham.paymentx.util.EncryptionUtil;
+import com.pratham.paymentx.util.HashUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -42,6 +43,7 @@ public class AuthServiceImpl implements AuthService {
     private final NfcCardRepository nfcCardRepository;
     private final MerchantProfileRepository merchantProfileRepository;
     private final EncryptionUtil encryptionUtil;
+    private final HashUtil hashUtil;
 
     @Override
     public UserPrincipal getCurrentPrincipal() {
@@ -134,6 +136,16 @@ public class AuthServiceImpl implements AuthService {
                 ()->new ResourceNotFoundException("Merchant Profile not found for the user")
         );
 
+        // BLIND INDEX: Generate HMAC composite hash for uniqueness checking
+        String compositeBankDetails = request.getBankAccountNumber() + "|" + request.getIfscCode();
+        String bankAccHash = hashUtil.hash(compositeBankDetails);
+
+        // FAIL FAST: Check if these exact details are already registered
+        if (merchantProfileRepository.existsByBankAccountHash(bankAccHash)) {
+            log.warn("Duplicate bank account registration attempt blocked for user {}", user.getId());
+            throw new BadRequestException("These bank details are already registered to an existing merchant account.");
+        }
+
         //encrypt
         byte[] encryptedGst = encryptionUtil.encrypt(request.getGstTaxId());
         byte[] encryptedBankAcc = encryptionUtil.encrypt(request.getBankAccountNumber());
@@ -146,6 +158,10 @@ public class AuthServiceImpl implements AuthService {
         merchantProfile.setEncryptedGstTaxId(encryptedGst);
         merchantProfile.setEncryptedBankAccount(encryptedBankAcc);
         merchantProfile.setEncryptedIfsc(encryptedIfsc);
+
+        // Save the deterministic hash for future duplicate checks
+        merchantProfile.setBankAccountHash(bankAccHash);
+
         //by default while creating profile, gateway status is set to pending
 
         //mark profile completed as true
@@ -177,13 +193,4 @@ public class AuthServiceImpl implements AuthService {
         sessionService.revokeSession(refreshToken);
         log.info("Successfully logged out user and revoked session");
     }
-
-    // TODO: Admin route to create new admin
-    // in that case, only a user row with email and role will be created
-    // now when the user logs in for the first time, his google account will be auto attached
-
-    // TODO: Firebase Attestation for android clients to prevent only app to send requests
-    // TODO: enable google play integrity api for anti-root check
-
-    // TODO: dashboard route with user details, profile completed, profile active, wallet created, blocked or unblocked, recent transactions
 }
