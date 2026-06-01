@@ -2,6 +2,9 @@ package com.pratham.paymentx.repository;
 
 import com.pratham.paymentx.entity.MerchantProfile;
 import com.pratham.paymentx.entity.User;
+import com.pratham.paymentx.enums.MerchantGatewayStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -18,5 +21,19 @@ public interface MerchantProfileRepository extends JpaRepository<MerchantProfile
 
     @Query("SELECT mp FROM MerchantProfile mp JOIN FETCH mp.user WHERE mp.user.id = :userId")
     Optional<MerchantProfile> findByUserIdWithUser(@Param("userId") UUID userId);
+
+
+    // Fetch All (Paginated + N+1 Protected)
+    @Query(value = "SELECT mp FROM MerchantProfile mp JOIN FETCH mp.user",
+            countQuery = "SELECT count(mp) FROM MerchantProfile mp")
+    Page<MerchantProfile> findAllWithUser(Pageable pageable);
+
+    // Fetch By Status (Paginated + N+1 Protected)
+    @Query(value = "SELECT mp FROM MerchantProfile mp JOIN FETCH mp.user WHERE mp.gatewayStatus = :status",
+            countQuery = "SELECT count(mp) FROM MerchantProfile mp WHERE mp.gatewayStatus = :status")
+    Page<MerchantProfile> findByGatewayStatusWithUser(
+            @Param("status") MerchantGatewayStatus status,
+            Pageable pageable
+    );
 
 }

@@ -1,10 +1,13 @@
 package com.pratham.paymentx.controller;
 
 import com.pratham.paymentx.dto.admin.CreateAdminRequest;
+import com.pratham.paymentx.dto.admin.MerchantSummaryResponse;
+import com.pratham.paymentx.enums.MerchantGatewayStatus;
 import com.pratham.paymentx.service.AdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.web.PagedModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -16,11 +19,11 @@ import java.util.UUID;
 @RequestMapping("/admin")
 @Slf4j
 @RequiredArgsConstructor
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminController {
 
     private final AdminService adminService;
 
-    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/create")
     public ResponseEntity<Void> createAdmin(@Valid @RequestBody CreateAdminRequest request){
         log.info("Attempting to create admin with email: {}",request.getEmail());
@@ -33,4 +36,14 @@ public class AdminController {
         adminService.approveMerchant(merchantId);
         return ResponseEntity.status(HttpStatus.ACCEPTED).build();
     }
+
+    @GetMapping("/merchants")
+    public ResponseEntity<PagedModel<MerchantSummaryResponse>> getMerchantsQueue(
+            @RequestParam(required = false) MerchantGatewayStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        PagedModel<MerchantSummaryResponse> pagedModel = new PagedModel<>(adminService.getMerchants(status, page, size));
+        return ResponseEntity.ok(pagedModel);
+    }
+
 }
