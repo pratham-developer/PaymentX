@@ -12,4 +12,5 @@ import java.util.UUID;
 public interface NfcCardRepository extends JpaRepository<NfcCard, UUID> {
     boolean existsByChipId(String chipId);
     Optional<NfcCard> findByStudentProfile(StudentProfile studentProfile);
+    Optional<NfcCard> findByChipId(String chipId);
 }

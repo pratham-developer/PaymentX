@@ -5,13 +5,9 @@ import com.pratham.paymentx.enums.TransactionStatus;
 import com.pratham.paymentx.enums.TransactionType;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.jpa.repository.QueryHints;
+import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -21,6 +17,7 @@ import java.util.UUID;
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
 
+    @EntityGraph(attributePaths = {"receiverWallet", "receiverWallet.user"})
     Optional<Transaction> findByIdempotencyKey(String idempotencyKey);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -40,5 +37,14 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
             @Param("txStatus") TransactionStatus txStatus,
             @Param("startTime") OffsetDateTime startTime,
             @Param("endTime") OffsetDateTime endTime
+    );
+
+    @Modifying
+    @Query("UPDATE Transaction t SET t.transactionStatus = :failedStatus, t.updatedAt = CURRENT_TIMESTAMP WHERE t.transactionType = :type AND t.transactionStatus = :pendingStatus AND t.createdAt < :cutoffTime")
+    int markAsFailedIfOlderThan(
+            @Param("type") TransactionType type,
+            @Param("pendingStatus") TransactionStatus pendingStatus,
+            @Param("failedStatus") TransactionStatus failedStatus,
+            @Param("cutoffTime") OffsetDateTime cutoffTime
     );
 }

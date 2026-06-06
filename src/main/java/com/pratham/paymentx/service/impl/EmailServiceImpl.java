@@ -62,7 +62,7 @@ public class EmailServiceImpl implements EmailService {
                 "Payout Failed — Action Required — PaymentX", html);
     }
 
-    // ─── Internal ────────────────────────────────────────────────────────────
+    // Internal
 
     private void sendEmail(String toEmail, String toName, String subject, String htmlContent) {
         try {

@@ -85,7 +85,7 @@ public class MerchantApprovalServiceImpl implements MerchantApprovalService, App
         }
     }
 
-    // ─── Isolated Transactional Boundaries ────────────────────────────────────
+    // Isolated Transactional Boundaries
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -143,7 +143,7 @@ public class MerchantApprovalServiceImpl implements MerchantApprovalService, App
         log.warn("Merchant {} bank verification failed, profile reset", merchantId);
     }
 
-    // ─── Cashfree Interaction (Runs OUTSIDE Database Transactions) ────────────
+    // Cashfree Interaction (Runs OUTSIDE Database Transactions)
 
     private void createBeneficiaryAndActivate(MerchantProfile merchant) {
         String bankAccount = encryptionUtil.decrypt(merchant.getEncryptedBankAccount());

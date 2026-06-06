@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -27,6 +28,8 @@ public class WalletServiceImpl implements WalletService {
     private final UserRepository userRepository;
     private final HashUtil hashUtil;
 
+    private static final int MAX_PIN_ATTEMPTS = 3;
+
     @Override
     @Transactional
     public void createWallet(UUID userId, String pin) {
@@ -35,12 +38,10 @@ public class WalletServiceImpl implements WalletService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        // Business Rule: Ensure user has actually completed their profile first
         if (!user.getProfileCompleted()) {
             throw new BadRequestException("Cannot create wallet: Profile is incomplete");
         }
 
-        // Prevent double creation
         if (walletRepository.findByUser(user).isPresent()) {
             throw new BadRequestException("Wallet already exists for this user");
         }
@@ -50,8 +51,6 @@ public class WalletServiceImpl implements WalletService {
                     .user(user)
                     .pinHash(hashUtil.hash(pin))
                     .walletStatus(WalletStatus.ACTIVE)
-                    // The @Builder.Default in your Wallet entity already handles balances,
-                    // pinAttempts, and version, but setting status explicitly is good practice.
                     .availableBalance(BigDecimal.ZERO)
                     .processingBalance(BigDecimal.ZERO)
                     .pinAttempts(0)
@@ -62,9 +61,48 @@ public class WalletServiceImpl implements WalletService {
             log.info("Successfully created wallet for userId: {}", userId);
 
         } catch (DataIntegrityViolationException e) {
-            // Failsafe: Catches race conditions if two requests bypass the .isPresent() check
             log.warn("Concurrent wallet creation blocked for userId: {}", userId);
             throw new BadRequestException("Wallet already exists for this user");
+        }
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void verifyWalletPin(UUID walletId, String rawPin) {
+        // 1. OCC Read: Fast fetch, no physical locks held during crypto math
+        Wallet wallet = walletRepository.findById(walletId)
+                .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
+
+        if (wallet.getWalletStatus() != WalletStatus.ACTIVE) {
+            throw new BadRequestException("Wallet is locked or inactive.");
+        }
+
+        // 2. Cryptographic Check
+        if (!hashUtil.matches(rawPin, wallet.getPinHash())) {
+            int attempts = wallet.getPinAttempts() + 1;
+            wallet.setPinAttempts(attempts);
+
+            if (attempts >= MAX_PIN_ATTEMPTS) {
+                wallet.setWalletStatus(WalletStatus.LOCKED);
+                log.error("SECURITY LOCKOUT: Wallet {} breached max PIN attempts. Account frozen.", walletId);
+            }
+
+            try {
+                walletRepository.saveAndFlush(wallet); // OCC Version Check happens here
+            } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
+                log.warn("Concurrent PIN failure update blocked for wallet {}", walletId);
+            }
+            throw new BadRequestException("Incorrect PIN.");
+        }
+
+        // 3. Success: Reset the counter if necessary
+        if (wallet.getPinAttempts() > 0) {
+            wallet.setPinAttempts(0);
+            try {
+                walletRepository.saveAndFlush(wallet); // OCC Version Check
+            } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
+                log.warn("Concurrent PIN reset blocked for wallet {}", walletId);
+            }
         }
     }
 }

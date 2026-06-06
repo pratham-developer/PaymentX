@@ -38,6 +38,16 @@ public class GlobalExceptionHandler {
     }
      */
 
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ApiResponse<?>> handleConflictException(ConflictException exception){
+        log.warn("Conflict: {}", exception.getMessage());
+        ApiError apiError = ApiError.builder()
+                .status(HttpStatus.CONFLICT)
+                .message(exception.getMessage())
+                .build();
+        return buildErrorResponseEntity(apiError);
+    }
+
     @ExceptionHandler(InvalidRoleException.class)
     public ResponseEntity<ApiResponse<?>> handleInvalidRoleException(InvalidRoleException exception){
         log.warn("Invalid Role: {}", exception.getMessage());

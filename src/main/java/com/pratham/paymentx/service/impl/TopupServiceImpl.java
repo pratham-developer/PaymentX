@@ -14,6 +14,7 @@ import com.pratham.paymentx.entity.Wallet;
 import com.pratham.paymentx.enums.TransactionStatus;
 import com.pratham.paymentx.enums.TransactionType;
 import com.pratham.paymentx.exception.BadRequestException;
+import com.pratham.paymentx.exception.ConflictException;
 import com.pratham.paymentx.exception.ResourceNotFoundException;
 import com.pratham.paymentx.repository.StudentProfileRepository;
 import com.pratham.paymentx.repository.TransactionRepository;
@@ -31,6 +32,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -59,10 +61,23 @@ public class TopupServiceImpl implements TopupService, ApplicationContextAware {
     // NO @Transactional: Orchestrator holds no DB connections during HTTP calls.
     public TopupInitiateResponse initiateTopup(UUID userId, TopupInitiateRequest request) {
 
-        // 1. FAST READ: Idempotency Check
-        Optional<Transaction> existingTx = transactionRepository.findByIdempotencyKey(request.getIdempotencyKey());
-        if (existingTx.isPresent()) {
-            Transaction tx = existingTx.get();
+        // 1. FAST READ: Hardened Idempotency Check
+        Optional<Transaction> existingTxOpt = transactionRepository.findByIdempotencyKey(request.getIdempotencyKey());
+        if (existingTxOpt.isPresent()) {
+            Transaction tx = existingTxOpt.get();
+
+            // Defense 1: Cross-Domain Collision Prevention
+            if (tx.getTransactionType() != TransactionType.TOPUP) {
+                log.error("Security Alert: Idempotency key {} reused across domains by user {}.", request.getIdempotencyKey(), userId);
+                throw new BadRequestException("Invalid or corrupted idempotency key.");
+            }
+
+            // Defense 2: Cryptographic Ownership Verification
+            if (tx.getReceiverWallet() == null || !tx.getReceiverWallet().getUser().getId().equals(userId)) {
+                log.warn("Security Alert: User {} attempted to hijack top-up idempotency key belonging to another user.", userId);
+                throw new BadRequestException("Idempotency key collision detected. Please try again.");
+            }
+
             if (tx.getTransactionStatus() != TransactionStatus.PENDING) {
                 throw new BadRequestException("This top-up request has already been finalized.");
             }
@@ -80,7 +95,14 @@ public class TopupServiceImpl implements TopupService, ApplicationContextAware {
         }
 
         // 2. ISOLATED TRANSACTION: Pre-commit DB Record
-        Transaction transaction = self().createPendingTopupRecord(userId, request);
+        Transaction transaction;
+        try {
+            transaction = self().createPendingTopupRecord(userId, request);
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Concurrent top-up attempt blocked for key: {}", request.getIdempotencyKey());
+            throw new ConflictException("A request with this ID is currently processing.");
+        }
+
         UUID transactionId = transaction.getId();
 
         // 3. NETWORK I/O: Call Cashfree
@@ -106,9 +128,7 @@ public class TopupServiceImpl implements TopupService, ApplicationContextAware {
                     .build();
 
         } catch (Exception e) {
-            log.error("Failed to initiate Cashfree order for txId: {}. Marking as FAILED locally.", transactionId, e);
-            // Self-heal: Fail it locally so it doesn't stay PENDING forever
-            self().settleFailedTopup(transactionId);
+            log.error("Failed to initiate Cashfree order for txId: {}. Leaving PENDING for fallback recovery.", transactionId, e);
             throw new RuntimeException("Payment Gateway unavailable. Please try again later.", e);
         }
     }
@@ -128,8 +148,18 @@ public class TopupServiceImpl implements TopupService, ApplicationContextAware {
         try {
             ApiResponse<OrderEntity> response = cashfree.PGFetchOrder(transactionId.toString(), null, null, null);
             gatewayStatus = response.getData().getOrderStatus();
+        } catch (com.cashfree.pg.ApiException e) {
+            // FIX: Handle orders that dropped before reaching Cashfree
+            if (e.getCode() == 404) {
+                log.warn("Cashfree has no record of txId={}. Order creation failed previously. Marking FAILED locally.", transactionId);
+                self().settleFailedTopup(transactionId);
+                return; // Gracefully exit
+            }
+            log.error("Fulfillment Engine encountered Cashfree API error for txId: {}", transactionId, e);
+            throw new RuntimeException("Upstream gateway error: " + e.getMessage(), e);
+
         } catch (Exception e) {
-            log.error("Fulfillment Engine failed to fetch Cashfree order txId: {}", transactionId, e);
+            log.error("Fulfillment Engine failed due to network/unknown error for txId: {}", transactionId, e);
             throw new RuntimeException("Upstream gateway error", e);
         }
 
@@ -148,7 +178,7 @@ public class TopupServiceImpl implements TopupService, ApplicationContextAware {
         }
     }
 
-    // ─── Isolated Transactional Boundaries ────────────────────────────────────
+    // Isolated Transactional Boundaries
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -164,12 +194,7 @@ public class TopupServiceImpl implements TopupService, ApplicationContextAware {
                 .transactionStatus(TransactionStatus.PENDING)
                 .idempotencyKey(request.getIdempotencyKey())
                 .build();
-
-        try {
-            return transactionRepository.saveAndFlush(transaction);
-        } catch (DataIntegrityViolationException e) {
-            throw new IllegalStateException("A request with this ID is currently processing.");
-        }
+        return transactionRepository.saveAndFlush(transaction);
     }
 
     @Override
@@ -210,6 +235,7 @@ public class TopupServiceImpl implements TopupService, ApplicationContextAware {
         walletRepository.save(receiverWallet);
         transactionRepository.save(tx);
         log.info("SUCCESS: Fulfilled top-up for txId={}. Credited ₹{}", transactionId, tx.getAmount());
+        //TODO: send email
 
         return false; // No refund needed
     }
@@ -226,6 +252,12 @@ public class TopupServiceImpl implements TopupService, ApplicationContextAware {
     }
 
     @Override
+    @Transactional
+    public int markAsFailedIfOlderThan(TransactionType type, TransactionStatus pendingStatus, TransactionStatus failedStatus, OffsetDateTime cutoffTime) {
+        return transactionRepository.markAsFailedIfOlderThan(type, pendingStatus, failedStatus, cutoffTime);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public void verifyTransactionOwnership(UUID transactionId, UUID userId) {
         Transaction transaction = transactionRepository.findById(transactionId)
@@ -237,7 +269,7 @@ public class TopupServiceImpl implements TopupService, ApplicationContextAware {
         }
     }
 
-    // ─── Helper Methods ───────────────────────────────────────────────────────
+    // Helper Methods
 
     private void executeGhostWalletRefund(UUID transactionId, BigDecimal amount) {
         log.warn("Initiating automatic gateway refund for Ghost Wallet txId={}", transactionId);

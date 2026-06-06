@@ -15,30 +15,30 @@ import org.springframework.retry.interceptor.RetryOperationsInterceptor;
 @Configuration
 public class RabbitMQConfig {
 
-    // ─── Exchange Names ───────────────────────────────────────────────────────
+    // Exchange Names
     public static final String EVENTS_EXCHANGE = "paymentx.events";
     public static final String DLX_EXCHANGE = "paymentx.dlx";
 
-    // ─── Routing Keys ─────────────────────────────────────────────────────────
+    // Routing Keys
     public static final String MERCHANT_APPROVAL_ROUTING_KEY = "merchant.approval";
     public static final String MERCHANT_APPROVAL_DLQ_ROUTING_KEY = "merchant.approval.dead";
     public static final String TOPUP_FULFILLMENT_ROUTING_KEY = "topup.fulfillment";
     public static final String TOPUP_FULFILLMENT_DLQ_ROUTING_KEY = "topup.fulfillment.dead";
 
-    // ─── Queue Names ──────────────────────────────────────────────────────────
+    // Queue Names
     public static final String MERCHANT_APPROVAL_QUEUE = "merchant.approval";
     public static final String MERCHANT_APPROVAL_DLQ = "merchant.approval.dead";
     public static final String TOPUP_FULFILLMENT_QUEUE = "topup.fulfillment";
     public static final String TOPUP_FULFILLMENT_DLQ = "topup.fulfillment.dead";
 
 
-    // ─── Retry Config ─────────────────────────────────────────────────────────
+    // Retry Config
     private static final int MAX_ATTEMPTS = 3;
     private static final long INITIAL_INTERVAL_MS = 2_000;   // 2s
     private static final double BACKOFF_MULTIPLIER = 2.0;     // 2s → 4s → 8s
     private static final long MAX_INTERVAL_MS = 10_000;       // cap at 10s
 
-    // ─── Exchanges ────────────────────────────────────────────────────────────
+    // Exchanges
     @Bean
     public TopicExchange eventsExchange() {
         return ExchangeBuilder.topicExchange(EVENTS_EXCHANGE)
@@ -53,7 +53,7 @@ public class RabbitMQConfig {
                 .build();
     }
 
-    // ─── Queues ───────────────────────────────────────────────────────────────
+    // Queues
     @Bean
     public Queue merchantApprovalQueue() {
         return QueueBuilder.durable(MERCHANT_APPROVAL_QUEUE)
@@ -64,7 +64,6 @@ public class RabbitMQConfig {
 
     @Bean
     public Queue merchantApprovalDlq() {
-        // DLQ is plain — no further dead-lettering
         return QueueBuilder.durable(MERCHANT_APPROVAL_DLQ).build();
     }
 
@@ -81,7 +80,7 @@ public class RabbitMQConfig {
         return QueueBuilder.durable(TOPUP_FULFILLMENT_DLQ).build();
     }
 
-    // ─── Bindings ─────────────────────────────────────────────────────────────
+    // Bindings
     @Bean
     public Binding merchantApprovalBinding() {
         return BindingBuilder
@@ -114,7 +113,7 @@ public class RabbitMQConfig {
                 .with(TOPUP_FULFILLMENT_DLQ_ROUTING_KEY);
     }
 
-    // ─── Message Converter ────────────────────────────────────────────────────
+    // Message Converter
     @Bean
     public MessageConverter jsonMessageConverter() {
         return new Jackson2JsonMessageConverter();
@@ -127,7 +126,7 @@ public class RabbitMQConfig {
         return template;
     }
 
-    // ─── Retry Interceptor ────────────────────────────────────────────────────
+    // Retry Interceptor
     public RetryOperationsInterceptor retryInterceptor() {
         return RetryInterceptorBuilder.stateless()
                 .maxAttempts(MAX_ATTEMPTS)
@@ -136,10 +135,6 @@ public class RabbitMQConfig {
                 .build();
     }
 
-    /**
-     * Listener container factory with retry interceptor wired in.
-     * All @RabbitListener methods use this factory by default.
-     */
     @Bean
     public SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(
             ConnectionFactory connectionFactory) {
