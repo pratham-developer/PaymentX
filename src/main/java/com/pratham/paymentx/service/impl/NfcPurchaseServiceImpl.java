@@ -13,7 +13,6 @@ import com.pratham.paymentx.enums.TransactionStatus;
 import com.pratham.paymentx.enums.TransactionType;
 import com.pratham.paymentx.enums.WalletStatus;
 import com.pratham.paymentx.exception.BadRequestException;
-import com.pratham.paymentx.exception.ConflictException;
 import com.pratham.paymentx.exception.ResourceNotFoundException;
 import com.pratham.paymentx.repository.NfcCardRepository;
 import com.pratham.paymentx.repository.TransactionRepository;
@@ -115,26 +114,27 @@ public class NfcPurchaseServiceImpl implements NfcPurchaseService {
     @Transactional
     public void processPurchase(UUID merchantId, NfcProcessRequest request) {
 
-        // 1. The Flawless Idempotency Shield (Time-Independent)
+        // 1. The Flawless Idempotency Shield
         Optional<Transaction> existingTxOpt = transactionRepository.findByIdempotencyKey(request.getSessionToken());
         if (existingTxOpt.isPresent()) {
             Transaction existingTx = existingTxOpt.get();
 
-            // Defense: State-Specific Routing. Because the token is a UUID, collisions are impossible.
-            switch (existingTx.getTransactionStatus()) {
-                case SUCCESS -> {
-                    log.info("Network retry absorbed for session: {}. Returning early success.", request.getSessionToken());
-                    return;
-                }
-                case PENDING -> {
-                    log.warn("Concurrent retry detected for actively processing session: {}", request.getSessionToken());
-                    throw new ConflictException("Payment is currently processing. Please wait.");
-                }
-                case FAILED -> {
-                    throw new BadRequestException("This transaction previously failed. Please initiate a new tap.");
-                }
-                default -> throw new BadRequestException("Transaction is in an invalid state.");
+            // Defense 1: Cross-Domain Replay Attack Prevention
+            if (existingTx.getTransactionType() != TransactionType.PURCHASE) {
+                log.error("Security Alert: Idempotency key {} reused across domains.", request.getSessionToken());
+                throw new BadRequestException("Invalid or corrupted idempotency key.");
             }
+
+            // Defense 2: Strict State Verification (Defensive Programming)
+            // Even though we only write SUCCESS right now, this protects against future code changes.
+            if (existingTx.getTransactionStatus() != TransactionStatus.SUCCESS) {
+                log.error("System Anomaly: Found non-SUCCESS purchase record for key: {}", request.getSessionToken());
+                throw new BadRequestException("Transaction failed or is in an invalid state. Please initiate a new tap.");
+            }
+
+            // If it passes both, it is a genuine dropped-network recovery for a successful payment.
+            log.info("Network retry absorbed for session: {}. Returning early success.", request.getSessionToken());
+            return;
         }
 
         // 2. Atomic ZERO-TRUST Execution

@@ -40,7 +40,7 @@ public class Transaction {
     private TransactionStatus transactionStatus;
 
     @Column(nullable = false, unique = true, updatable = false)
-    private String idempotencyKey;
+    private UUID idempotencyKey;
 
     // Self-reference for refunds issued by a merchant
     @OneToOne(fetch = FetchType.LAZY)

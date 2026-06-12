@@ -62,11 +62,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<?>> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
-        log.warn("Payload JSON parsing failed: {}", ex.getMessage());
+        log.warn("Request body deserialization failed", ex);
 
         ApiError apiError = ApiError.builder()
                 .status(HttpStatus.BAD_REQUEST)
-                .message("Malformed JSON request. Please check your syntax (e.g., trailing commas).")
+                .message("Request body contains invalid or improperly formatted data.")
                 .build();
 
         return buildErrorResponseEntity(apiError);
