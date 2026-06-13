@@ -29,10 +29,7 @@ The detailed system design, architectural decisions, request flows, data modelin
 
 <div align="center">
 
-**[View Documentation &rarr;](https://deepwiki.com/pratham-developer/PaymentX)**
-
-`https://deepwiki.com/pratham-developer/PaymentX`
-
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/pratham-developer/PaymentX)
 </div>
 
 ## Database Architecture
@@ -40,5 +37,5 @@ The detailed system design, architectural decisions, request flows, data modelin
 The following Entity Relationship Diagram represents the core data model and relationships supporting the payment lifecycle.
 
 <p align="center">
-  <img src="src/main/resources/erd.png" alt="PaymentX Entity Relationship Diagram" width="88%" />
+  <img src="src/main/resources/erd.png" alt="PaymentX Entity Relationship Diagram" width="3668" />
 </p>
