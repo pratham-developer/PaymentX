@@ -42,7 +42,8 @@ public class AdminController {
             @RequestParam(required = false) MerchantGatewayStatus status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        PagedModel<MerchantSummaryResponse> pagedModel = new PagedModel<>(adminService.getMerchants(status, page, size));
+        int safeSize = Math.min(size, 100);
+        PagedModel<MerchantSummaryResponse> pagedModel = new PagedModel<>(adminService.getMerchants(status, page, safeSize));
         return ResponseEntity.ok(pagedModel);
     }
 

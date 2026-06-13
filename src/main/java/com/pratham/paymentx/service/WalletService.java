@@ -4,5 +4,5 @@ import java.util.UUID;
 
 public interface WalletService {
     void createWallet(UUID userId, String pin);
-    void verifyWalletPin(UUID walletId, String rawPin);
+    boolean verifyWalletPin(UUID walletId, String rawPin);
 }

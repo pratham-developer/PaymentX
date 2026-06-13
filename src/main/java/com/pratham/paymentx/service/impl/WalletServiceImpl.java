@@ -68,13 +68,12 @@ public class WalletServiceImpl implements WalletService {
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void verifyWalletPin(UUID walletId, String rawPin) {
-        // 1. OCC Read: Fast fetch, no physical locks held during crypto math
+    public boolean verifyWalletPin(UUID walletId, String rawPin) {
         Wallet wallet = walletRepository.findById(walletId)
                 .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
 
         if (wallet.getWalletStatus() != WalletStatus.ACTIVE) {
-            throw new BadRequestException("Wallet is locked or inactive.");
+            throw new BadRequestException("Wallet is locked or inactive."); // Hard system stop, rollback is fine here
         }
 
         // 2. Cryptographic Check
@@ -88,21 +87,25 @@ public class WalletServiceImpl implements WalletService {
             }
 
             try {
-                walletRepository.saveAndFlush(wallet); // OCC Version Check happens here
+                walletRepository.saveAndFlush(wallet);
             } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
                 log.warn("Concurrent PIN failure update blocked for wallet {}", walletId);
             }
-            throw new BadRequestException("Incorrect PIN.");
+
+            // CLEAN SOLUTION: Return false instead of throwing an exception
+            return false;
         }
 
         // 3. Success: Reset the counter if necessary
         if (wallet.getPinAttempts() > 0) {
             wallet.setPinAttempts(0);
             try {
-                walletRepository.saveAndFlush(wallet); // OCC Version Check
+                walletRepository.saveAndFlush(wallet);
             } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
                 log.warn("Concurrent PIN reset blocked for wallet {}", walletId);
             }
         }
+
+        return true;
     }
 }

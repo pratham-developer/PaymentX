@@ -1,14 +1,17 @@
 package com.pratham.paymentx.service.impl;
 
+import com.pratham.paymentx.dto.dashboard.BalanceDto;
 import com.pratham.paymentx.dto.dashboard.DashboardResponse;
 import com.pratham.paymentx.dto.transaction.TransactionDto;
 import com.pratham.paymentx.entity.*;
 import com.pratham.paymentx.enums.NfcCardStatus;
 import com.pratham.paymentx.enums.Role;
 import com.pratham.paymentx.enums.WalletStatus;
+import com.pratham.paymentx.exception.BadRequestException;
 import com.pratham.paymentx.exception.ResourceNotFoundException;
 import com.pratham.paymentx.repository.*;
 import com.pratham.paymentx.service.DashboardService;
+import com.pratham.paymentx.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -33,6 +36,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final MerchantProfileRepository merchantProfileRepository;
     private final NfcCardRepository nfcCardRepository;
     private final TransactionRepository transactionRepository;
+    private final WalletService walletService;
 
     @Override
     @Transactional(readOnly = true)
@@ -221,5 +225,24 @@ public class DashboardServiceImpl implements DashboardService {
 
         // Elegantly map the entities to DTOs while retaining pagination metadata
         return transactionPage.map(tx -> mapToTransactionDto(tx, wallet.getId()));
+    }
+
+    @Override
+    @Transactional
+    public BalanceDto getSecureBalance(UUID userId, String pin) {
+        User user = userRepository.findById(userId).orElseThrow();
+        Wallet wallet = walletRepository.findByUser(user).orElseThrow();
+
+        // Evaluate the boolean
+        boolean isPinValid = walletService.verifyWalletPin(wallet.getId(), pin);
+        if (!isPinValid) {
+            throw new BadRequestException("Incorrect PIN.");
+        }
+
+        return BalanceDto.builder()
+                .availableBalance(wallet.getAvailableBalance())
+                .processingBalance(wallet.getProcessingBalance())
+                .totalBalance(calculateTotalBalance(wallet))
+                .build();
     }
 }

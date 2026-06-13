@@ -161,7 +161,10 @@ public class NfcPurchaseServiceImpl implements NfcPurchaseService {
         }
 
         // 4. VERIFY PIN FIRST (Calls isolated transaction, avoiding self-deadlock)
-        walletService.verifyWalletPin(session.getStudentWalletId(), request.getPin());
+        boolean isPinValid = walletService.verifyWalletPin(session.getStudentWalletId(), request.getPin());
+        if (!isPinValid) {
+            throw new BadRequestException("Incorrect PIN.");
+        }
 
         // 5. Deadlock-Free Ledger Sorting
         UUID studentWalletId = session.getStudentWalletId();
