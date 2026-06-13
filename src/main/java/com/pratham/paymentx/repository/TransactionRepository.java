@@ -5,6 +5,7 @@ import com.pratham.paymentx.enums.TransactionStatus;
 import com.pratham.paymentx.enums.TransactionType;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
@@ -56,4 +57,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
 
     @Query("SELECT t FROM Transaction t WHERE t.senderWallet.id = :walletId OR t.receiverWallet.id = :walletId ORDER BY t.createdAt DESC")
     List<Transaction> findRecentTransactionsByWalletId(@Param("walletId") UUID walletId, Pageable pageable);
+
+    @Query("SELECT t FROM Transaction t WHERE t.senderWallet.id = :walletId OR t.receiverWallet.id = :walletId ORDER BY t.createdAt DESC")
+    Page<Transaction> findAllTransactionsByWalletId(@Param("walletId") UUID walletId, Pageable pageable);
 }

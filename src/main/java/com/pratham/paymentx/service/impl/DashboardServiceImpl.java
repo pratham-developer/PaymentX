@@ -11,6 +11,7 @@ import com.pratham.paymentx.repository.*;
 import com.pratham.paymentx.service.DashboardService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -202,5 +203,23 @@ public class DashboardServiceImpl implements DashboardService {
                 .title(title)
                 .timestamp(tx.getCreatedAt())
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<TransactionDto> getTransactionFeed(UUID userId, int page, int size) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Wallet wallet = walletRepository.findByUser(user)
+                .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
+
+        // Fetch the raw page of entities from the database
+        Page<Transaction> transactionPage = transactionRepository.findAllTransactionsByWalletId(
+                wallet.getId(), PageRequest.of(page, size)
+        );
+
+        // Elegantly map the entities to DTOs while retaining pagination metadata
+        return transactionPage.map(tx -> mapToTransactionDto(tx, wallet.getId()));
     }
 }
