@@ -37,4 +37,10 @@ public interface MerchantProfileRepository extends JpaRepository<MerchantProfile
     @Query("SELECT m FROM MerchantProfile m JOIN FETCH m.user u JOIN Wallet w ON w.user = u " +
             "WHERE m.gatewayStatus = 'BENEFICIARY_CREATED' AND w.availableBalance >= 10.00")
     List<MerchantProfile> findEligibleMerchantsForAutoPayout();
+
+    Page<MerchantProfile> findByGatewayStatus(
+            MerchantGatewayStatus status,
+            Pageable pageable
+    );
+
 }

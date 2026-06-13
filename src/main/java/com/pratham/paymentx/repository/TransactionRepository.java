@@ -3,6 +3,7 @@ package com.pratham.paymentx.repository;
 import com.pratham.paymentx.entity.Transaction;
 import com.pratham.paymentx.enums.TransactionStatus;
 import com.pratham.paymentx.enums.TransactionType;
+import com.pratham.paymentx.projection.MerchantFlowStats;
 import com.pratham.paymentx.projection.TransactionStats;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
@@ -12,6 +13,7 @@ import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -71,5 +73,32 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
             @Param("status") TransactionStatus status,
             @Param("startTime") java.time.OffsetDateTime startTime,
             @Param("endTime") java.time.OffsetDateTime endTime
+    );
+
+    @Query("SELECT " +
+            "COALESCE(SUM(CASE WHEN t.receiverWallet.id = :walletId AND t.transactionType = 'PURCHASE' THEN t.amount ELSE 0 END), 0) as inflows, " +
+            "COALESCE(SUM(CASE WHEN t.senderWallet.id = :walletId AND t.transactionType = 'PAYOUT' THEN t.amount ELSE 0 END), 0) as outflows, " +
+            "COALESCE(SUM(CASE WHEN t.senderWallet.id = :walletId AND t.transactionType = 'FEE' THEN t.amount ELSE 0 END), 0) as fees " +
+            "FROM Transaction t " +
+            "WHERE (t.receiverWallet.id = :walletId OR t.senderWallet.id = :walletId) " +
+            "AND t.transactionStatus = 'SUCCESS' " +
+            "AND t.createdAt >= :startTime AND t.createdAt < :endTime")
+    MerchantFlowStats getMerchantFlowsForPeriod(
+            @Param("walletId") UUID walletId,
+            @Param("startTime") OffsetDateTime startTime,
+            @Param("endTime") OffsetDateTime endTime
+    );
+
+    // Ledger Math: (All Credits up to T) - (All Debits up to T)
+    @Query("SELECT " +
+            "COALESCE(SUM(CASE WHEN t.receiverWallet.id = :walletId THEN t.amount ELSE 0 END), 0) - " +
+            "COALESCE(SUM(CASE WHEN t.senderWallet.id = :walletId THEN t.amount ELSE 0 END), 0) " +
+            "FROM Transaction t " +
+            "WHERE (t.receiverWallet.id = :walletId OR t.senderWallet.id = :walletId) " +
+            "AND t.transactionStatus = 'SUCCESS' " +
+            "AND t.createdAt < :timestamp")
+    BigDecimal getHistoricalBalanceAt(
+            @Param("walletId") UUID walletId,
+            @Param("timestamp") OffsetDateTime timestamp
     );
 }

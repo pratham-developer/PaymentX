@@ -60,9 +60,7 @@ public class PayoutServiceImpl implements PayoutService, ApplicationContextAware
 
     private PayoutService self() { return applicationContext.getBean(PayoutService.class); }
 
-    // =========================================================================================
     // 1. INSTANT PAYOUT (Manual Self-Service)
-    // =========================================================================================
 
     @Override
     public void initiateInstantPayout(UUID merchantUserId, BigDecimal amount) {
@@ -101,9 +99,7 @@ public class PayoutServiceImpl implements PayoutService, ApplicationContextAware
         }
     }
 
-    // =========================================================================================
     // 2. BATCH PAYOUT (Nightly Cron Driven)
-    // =========================================================================================
 
     @Override
     public void processNightlyBatchSettlements() {
@@ -169,9 +165,7 @@ public class PayoutServiceImpl implements PayoutService, ApplicationContextAware
         }
     }
 
-    // =========================================================================================
     // 3. RECONCILIATION ROUTER
-    // =========================================================================================
 
     @Override
     public void processPayoutReconciliation(UUID transactionId) {
@@ -201,9 +195,7 @@ public class PayoutServiceImpl implements PayoutService, ApplicationContextAware
         }
     }
 
-    // =========================================================================================
     // 4. ISOLATED TRANSACTION BOUNDARIES (LEDGER ESCROW MATH)
-    // =========================================================================================
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
