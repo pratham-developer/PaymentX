@@ -13,8 +13,8 @@ import com.pratham.paymentx.enums.MerchantGatewayStatus;
 import com.pratham.paymentx.exception.ResourceNotFoundException;
 import com.pratham.paymentx.repository.MerchantProfileRepository;
 import com.pratham.paymentx.repository.UserRepository;
-import com.pratham.paymentx.service.EmailService;
 import com.pratham.paymentx.service.MerchantApprovalService;
+import com.pratham.paymentx.service.NotificationService;
 import com.pratham.paymentx.util.EncryptionUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +36,7 @@ public class MerchantApprovalServiceImpl implements MerchantApprovalService, App
     private final UserRepository userRepository;
     private final CashfreePayout cashfreePayout;
     private final EncryptionUtil encryptionUtil;
-    private final EmailService emailService;
+    private final NotificationService notificationService;
 
     private ApplicationContext applicationContext;
 
@@ -138,8 +138,12 @@ public class MerchantApprovalServiceImpl implements MerchantApprovalService, App
 
         merchantProfileRepository.save(merchant);
         userRepository.save(user);
-
-        emailService.sendBankVerificationFailureEmail(user.getEmail(), merchant.getBusinessName());
+        try{
+            notificationService.sendBankVerificationFailure(user.getEmail(), merchant.getBusinessName());
+        }catch (Exception e){
+            log.error("Unable to send email for bank verification failure for merchantId={}", merchantId, e);
+        }
+        notificationService.sendBankVerificationFailure(user.getEmail(), merchant.getBusinessName());
         log.warn("Merchant {} bank verification failed, profile reset", merchantId);
     }
 

@@ -7,5 +7,6 @@ public record BrevoProperties(
         String apiKey,
         String senderEmail,
         String senderName,
-        String dashboardUrl   // injected into email CTAs so it's env-configurable
+        String dashboardUrl,
+        String adminEmail// injected into email CTAs so it's env-configurable
 ) {}

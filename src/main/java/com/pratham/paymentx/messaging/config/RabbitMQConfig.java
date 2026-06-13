@@ -26,6 +26,9 @@ public class RabbitMQConfig {
     public static final String TOPUP_FULFILLMENT_DLQ_ROUTING_KEY = "topup.fulfillment.dead";
     public static final String PAYOUT_RECON_ROUTING_KEY = "payout.reconciliation";
     public static final String PAYOUT_RECON_DLQ_ROUTING_KEY = "payout.reconciliation.dead";
+    public static final String EMAIL_ROUTING_KEY = "email.notification";
+    public static final String EMAIL_DLQ_ROUTING_KEY = "email.notification.dead";
+
 
     // Queue Names
     public static final String MERCHANT_APPROVAL_QUEUE = "merchant.approval";
@@ -34,6 +37,8 @@ public class RabbitMQConfig {
     public static final String TOPUP_FULFILLMENT_DLQ = "topup.fulfillment.dead";
     public static final String PAYOUT_RECON_QUEUE = "payout.reconciliation";
     public static final String PAYOUT_RECON_DLQ = "payout.reconciliation.dead";
+    public static final String EMAIL_QUEUE = "email.notification";
+    public static final String EMAIL_DLQ = "email.notification.dead";
 
 
     // Retry Config
@@ -97,6 +102,19 @@ public class RabbitMQConfig {
         return QueueBuilder.durable(PAYOUT_RECON_DLQ).build();
     }
 
+    @Bean
+    public Queue emailQueue() {
+        return QueueBuilder.durable(EMAIL_QUEUE)
+                .withArgument("x-dead-letter-exchange", DLX_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", EMAIL_DLQ_ROUTING_KEY)
+                .build();
+    }
+
+    @Bean
+    public Queue emailDlq() {
+        return QueueBuilder.durable(EMAIL_DLQ).build();
+    }
+
     // Bindings
     @Bean
     public Binding merchantApprovalBinding() {
@@ -138,6 +156,16 @@ public class RabbitMQConfig {
     @Bean
     public Binding payoutReconDlqBinding() {
         return BindingBuilder.bind(payoutReconDlq()).to(dlxExchange()).with(PAYOUT_RECON_DLQ_ROUTING_KEY);
+    }
+
+    @Bean
+    public Binding emailBinding() {
+        return BindingBuilder.bind(emailQueue()).to(eventsExchange()).with(EMAIL_ROUTING_KEY);
+    }
+
+    @Bean
+    public Binding emailDlqBinding() {
+        return BindingBuilder.bind(emailDlq()).to(dlxExchange()).with(EMAIL_DLQ_ROUTING_KEY);
     }
 
     // Message Converter

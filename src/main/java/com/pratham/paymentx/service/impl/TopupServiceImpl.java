@@ -10,6 +10,7 @@ import com.pratham.paymentx.dto.transaction.topup.TopupInitiateRequest;
 import com.pratham.paymentx.dto.transaction.topup.TopupInitiateResponse;
 import com.pratham.paymentx.entity.StudentProfile;
 import com.pratham.paymentx.entity.Transaction;
+import com.pratham.paymentx.entity.User;
 import com.pratham.paymentx.entity.Wallet;
 import com.pratham.paymentx.enums.TransactionStatus;
 import com.pratham.paymentx.enums.TransactionType;
@@ -19,6 +20,7 @@ import com.pratham.paymentx.exception.ResourceNotFoundException;
 import com.pratham.paymentx.repository.StudentProfileRepository;
 import com.pratham.paymentx.repository.TransactionRepository;
 import com.pratham.paymentx.repository.WalletRepository;
+import com.pratham.paymentx.service.NotificationService;
 import com.pratham.paymentx.service.TopupService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +47,7 @@ public class TopupServiceImpl implements TopupService, ApplicationContextAware {
     private final WalletRepository walletRepository;
     private final StudentProfileRepository studentProfileRepository;
     private final Cashfree cashfree;
+    private final NotificationService notificationService;
 
     private ApplicationContext applicationContext;
 
@@ -235,7 +238,17 @@ public class TopupServiceImpl implements TopupService, ApplicationContextAware {
         walletRepository.save(receiverWallet);
         transactionRepository.save(tx);
         log.info("SUCCESS: Fulfilled top-up for txId={}. Credited ₹{}", transactionId, tx.getAmount());
-        //TODO: send email
+
+        // 5. Send Email
+        User user = receiverWallet.getUser();
+        studentProfileRepository.findByUserId(user.getId()).ifPresent(profile -> {
+            try {
+                notificationService.sendTopupSuccess(user.getEmail(), profile.getFullName(), tx.getAmount());
+            } catch (Exception e) {
+                // Enterprise Defense: Never let an email failure rollback a successful financial ledger update
+                log.error("Ledger updated, but failed to queue Topup Success email for user: {}", user.getId(), e);
+            }
+        });
 
         return false; // No refund needed
     }

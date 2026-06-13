@@ -10,6 +10,7 @@ import com.cashfree.model.CreateBatchTransferRequestTransfersInner;
 import com.cashfree.model.CreateBatchTransferRequestTransfersInnerBeneficiaryDetails;
 import com.pratham.paymentx.entity.MerchantProfile;
 import com.pratham.paymentx.entity.Transaction;
+import com.pratham.paymentx.entity.User;
 import com.pratham.paymentx.entity.Wallet;
 import com.pratham.paymentx.enums.MerchantGatewayStatus;
 import com.pratham.paymentx.enums.TransactionStatus;
@@ -19,6 +20,7 @@ import com.pratham.paymentx.exception.ResourceNotFoundException;
 import com.pratham.paymentx.repository.MerchantProfileRepository;
 import com.pratham.paymentx.repository.TransactionRepository;
 import com.pratham.paymentx.repository.WalletRepository;
+import com.pratham.paymentx.service.NotificationService;
 import com.pratham.paymentx.service.PayoutService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +46,7 @@ public class PayoutServiceImpl implements PayoutService, ApplicationContextAware
     private final WalletRepository walletRepository;
     private final MerchantProfileRepository merchantProfileRepository;
     private final CashfreePayout cashfreePayout;
+    private final NotificationService notificationService;
 
     private ApplicationContext applicationContext;
     private static final String API_VERSION = "2024-01-01";
@@ -301,6 +304,16 @@ public class PayoutServiceImpl implements PayoutService, ApplicationContextAware
             transactionRepository.save(tx);
             log.warn("Payout FAILED for txId: {}. Returned ₹{} principal and ₹{} fee to merchant.",
                     transactionId, principalRefund, feeRefund);
+
+            // Fire Async Notification
+            User merchantUser = wallet.getUser();
+            merchantProfileRepository.findByUserIdWithUser(merchantUser.getId()).ifPresent(merchant -> {
+                try {
+                    notificationService.sendPayoutFailure(merchantUser.getEmail(), merchant.getBusinessName(), principalRefund);
+                } catch (Exception e) {
+                    log.error("Ledger updated, but failed to queue Payout Failure email for merchant: {}", merchantUser.getId(), e);
+                }
+            });
         }
     }
 }

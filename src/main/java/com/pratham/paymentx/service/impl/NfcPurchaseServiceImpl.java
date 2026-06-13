@@ -7,6 +7,7 @@ import com.pratham.paymentx.dto.transaction.nfc_payment.NfcProcessRequest;
 import com.pratham.paymentx.dto.transaction.nfc_payment.NfcRedisSession;
 import com.pratham.paymentx.entity.NfcCard;
 import com.pratham.paymentx.entity.Transaction;
+import com.pratham.paymentx.entity.User;
 import com.pratham.paymentx.entity.Wallet;
 import com.pratham.paymentx.enums.NfcCardStatus;
 import com.pratham.paymentx.enums.TransactionStatus;
@@ -14,10 +15,9 @@ import com.pratham.paymentx.enums.TransactionType;
 import com.pratham.paymentx.enums.WalletStatus;
 import com.pratham.paymentx.exception.BadRequestException;
 import com.pratham.paymentx.exception.ResourceNotFoundException;
-import com.pratham.paymentx.repository.NfcCardRepository;
-import com.pratham.paymentx.repository.TransactionRepository;
-import com.pratham.paymentx.repository.WalletRepository;
+import com.pratham.paymentx.repository.*;
 import com.pratham.paymentx.service.NfcPurchaseService;
+import com.pratham.paymentx.service.NotificationService;
 import com.pratham.paymentx.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +41,9 @@ public class NfcPurchaseServiceImpl implements NfcPurchaseService {
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
     private final WalletService walletService;
+    private final NotificationService notificationService;
+    private final StudentProfileRepository studentProfileRepository;
+    private final MerchantProfileRepository merchantProfileRepository;
 
     private static final long NFC_SESSION_TTL_SECONDS = 60;
 
@@ -209,6 +212,29 @@ public class NfcPurchaseServiceImpl implements NfcPurchaseService {
 
         log.info("SUCCESS: Executed offline purchase txId={} for ₹{}", transaction.getId(), session.getAmount());
 
-        // TODO: send email
+        // Fire Async Notifications to both parties
+        User studentUser = studentWallet.getUser();
+        User merchantUser = merchantWallet.getUser();
+
+        try {
+            studentProfileRepository.findByUserId(studentUser.getId()).ifPresent(studentProfile -> {
+                merchantProfileRepository.findByUserIdWithUser(merchantUser.getId()).ifPresent(merchantProfile -> {
+
+                    notificationService.sendNfcPurchaseReceiptStudent(
+                            studentUser.getEmail(),
+                            studentProfile.getFullName(),
+                            merchantProfile.getBusinessName(),
+                            session.getAmount());
+
+                    notificationService.sendNfcPurchaseReceiptMerchant(
+                            merchantUser.getEmail(),
+                            merchantProfile.getBusinessName(),
+                            studentProfile.getFullName(),
+                            session.getAmount());
+                });
+            });
+        } catch (Exception e) {
+            log.error("Ledger updated, but failed to queue NFC receipt emails for txId={}", transaction.getId(), e);
+        }
     }
 }

@@ -1,6 +1,7 @@
 package com.pratham.paymentx.service;
 
+import com.pratham.paymentx.messaging.event.EmailNotificationEvent;
+
 public interface EmailService {
-    void sendBankVerificationFailureEmail(String toEmail, String businessName);
-    void sendPayoutFailureEmail(String toEmail, String businessName, String amount);
+    void processEmailEvent(EmailNotificationEvent event);
 }
