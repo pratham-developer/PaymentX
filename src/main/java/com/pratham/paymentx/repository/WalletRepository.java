@@ -29,4 +29,7 @@ public interface WalletRepository extends JpaRepository<Wallet, UUID> {
     @QueryHints({@QueryHint(name = "jakarta.persistence.lock.timeout", value = "0")})
     @Query("SELECT w FROM Wallet w WHERE w.user.id = :userId")
     Optional<Wallet> findByUserIdAndLock(@Param("userId") UUID userId);
+
+    @Query("SELECT COALESCE(SUM(w.processingBalance), 0) FROM Wallet w")
+    java.math.BigDecimal getTotalProcessingEscrowBalance();
 }

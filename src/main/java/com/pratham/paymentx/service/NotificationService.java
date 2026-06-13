@@ -15,8 +15,8 @@ public interface NotificationService {
                                     BigDecimal openingBalance, BigDecimal inflows,
                                     BigDecimal outflows, BigDecimal fees);
 
-    void sendAdminEodReport(LocalDate date, int totalTopupsCount, BigDecimal totalTopupVolume,
-                            int totalPayoutsCount, BigDecimal totalPayoutVolume,
+    void sendAdminEodReport(LocalDate date, long totalTopupsCount, BigDecimal totalTopupVolume,
+                            long totalPayoutsCount, BigDecimal totalPayoutVolume,
                             BigDecimal platformRevenue, BigDecimal totalProcessingEscrow);
 
     void sendNfcPurchaseReceiptStudent(String toEmail, String studentName, String merchantName, BigDecimal amount);

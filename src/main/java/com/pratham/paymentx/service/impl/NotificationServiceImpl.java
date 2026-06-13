@@ -95,8 +95,8 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
-    public void sendAdminEodReport(LocalDate date, int totalTopupsCount, BigDecimal totalTopupVolume,
-                                   int totalPayoutsCount, BigDecimal totalPayoutVolume,
+    public void sendAdminEodReport(LocalDate date, long totalTopupsCount, BigDecimal totalTopupVolume,
+                                   long totalPayoutsCount, BigDecimal totalPayoutVolume,
                                    BigDecimal platformRevenue, BigDecimal totalProcessingEscrow) {
 
         String formattedDate = date.format(DATE_FORMATTER);
@@ -104,7 +104,7 @@ public class NotificationServiceImpl implements NotificationService {
                 brevoProperties.adminEmail(), // Send to your internal admin/founder email
                 "PaymentX Founders",
                 "EOD Financial Report — " + formattedDate,
-                "admin-eod-report.html.html",
+                "admin-eod-report.html",
                 Map.of(
                         "REPORT_DATE", formattedDate,
                         "TOPUP_COUNT", String.valueOf(totalTopupsCount),

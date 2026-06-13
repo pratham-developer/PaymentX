@@ -3,6 +3,7 @@ package com.pratham.paymentx.repository;
 import com.pratham.paymentx.entity.Transaction;
 import com.pratham.paymentx.enums.TransactionStatus;
 import com.pratham.paymentx.enums.TransactionType;
+import com.pratham.paymentx.projection.TransactionStats;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.domain.Page;
@@ -60,4 +61,15 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
 
     @Query("SELECT t FROM Transaction t WHERE t.senderWallet.id = :walletId OR t.receiverWallet.id = :walletId ORDER BY t.createdAt DESC")
     Page<Transaction> findAllTransactionsByWalletId(@Param("walletId") UUID walletId, Pageable pageable);
+
+    @Query("SELECT COUNT(t) as txCount, COALESCE(SUM(t.amount), 0) as totalVolume " +
+            "FROM Transaction t " +
+            "WHERE t.transactionType = :type AND t.transactionStatus = :status " +
+            "AND t.createdAt >= :startTime AND t.createdAt < :endTime")
+    TransactionStats getTransactionStats(
+            @Param("type") TransactionType type,
+            @Param("status") TransactionStatus status,
+            @Param("startTime") java.time.OffsetDateTime startTime,
+            @Param("endTime") java.time.OffsetDateTime endTime
+    );
 }
