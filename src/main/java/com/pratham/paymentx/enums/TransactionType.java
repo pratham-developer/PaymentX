@@ -3,9 +3,7 @@ package com.pratham.paymentx.enums;
 public enum TransactionType {
     TOPUP,
     PURCHASE,
-    WITHDRAWAL,
-    SETTLEMENT,
+    PAYOUT,
+    FEE,
     REFUND
 }
-
-//TODO: refund for failures, settlement for auto payout cron job, withdrawal for manual payout

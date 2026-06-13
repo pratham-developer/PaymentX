@@ -1,4 +1,4 @@
-package com.pratham.paymentx.dto.transaction.nfc;
+package com.pratham.paymentx.dto.transaction.nfc_payment;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;

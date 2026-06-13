@@ -1,4 +1,4 @@
-package com.pratham.paymentx.dto.transaction;
+package com.pratham.paymentx.dto.transaction.topup;
 
 import lombok.Builder;
 import lombok.Data;

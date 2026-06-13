@@ -1,4 +1,4 @@
-package com.pratham.paymentx.dto.transaction.nfc;
+package com.pratham.paymentx.dto.transaction.nfc_payment;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

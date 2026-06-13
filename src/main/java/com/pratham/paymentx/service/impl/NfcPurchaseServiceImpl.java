@@ -1,10 +1,10 @@
 package com.pratham.paymentx.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pratham.paymentx.dto.transaction.nfc.NfcInitiateRequest;
-import com.pratham.paymentx.dto.transaction.nfc.NfcInitiateResponse;
-import com.pratham.paymentx.dto.transaction.nfc.NfcProcessRequest;
-import com.pratham.paymentx.dto.transaction.nfc.NfcRedisSession;
+import com.pratham.paymentx.dto.transaction.nfc_payment.NfcInitiateRequest;
+import com.pratham.paymentx.dto.transaction.nfc_payment.NfcInitiateResponse;
+import com.pratham.paymentx.dto.transaction.nfc_payment.NfcProcessRequest;
+import com.pratham.paymentx.dto.transaction.nfc_payment.NfcRedisSession;
 import com.pratham.paymentx.entity.NfcCard;
 import com.pratham.paymentx.entity.Transaction;
 import com.pratham.paymentx.entity.Wallet;

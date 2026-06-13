@@ -1,8 +1,8 @@
 package com.pratham.paymentx.service;
 
-import com.pratham.paymentx.dto.transaction.nfc.NfcInitiateRequest;
-import com.pratham.paymentx.dto.transaction.nfc.NfcInitiateResponse;
-import com.pratham.paymentx.dto.transaction.nfc.NfcProcessRequest;
+import com.pratham.paymentx.dto.transaction.nfc_payment.NfcInitiateRequest;
+import com.pratham.paymentx.dto.transaction.nfc_payment.NfcInitiateResponse;
+import com.pratham.paymentx.dto.transaction.nfc_payment.NfcProcessRequest;
 
 import java.util.UUID;
 

@@ -1,7 +1,7 @@
 package com.pratham.paymentx.service;
 
-import com.pratham.paymentx.dto.transaction.TopupInitiateRequest;
-import com.pratham.paymentx.dto.transaction.TopupInitiateResponse;
+import com.pratham.paymentx.dto.transaction.topup.TopupInitiateRequest;
+import com.pratham.paymentx.dto.transaction.topup.TopupInitiateResponse;
 import com.pratham.paymentx.entity.Transaction;
 import com.pratham.paymentx.enums.TransactionStatus;
 import com.pratham.paymentx.enums.TransactionType;

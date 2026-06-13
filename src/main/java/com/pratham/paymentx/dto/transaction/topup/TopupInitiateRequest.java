@@ -1,4 +1,4 @@
-package com.pratham.paymentx.dto.transaction;
+package com.pratham.paymentx.dto.transaction.topup;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;

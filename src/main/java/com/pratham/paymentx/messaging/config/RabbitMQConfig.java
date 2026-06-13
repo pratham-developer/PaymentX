@@ -24,12 +24,16 @@ public class RabbitMQConfig {
     public static final String MERCHANT_APPROVAL_DLQ_ROUTING_KEY = "merchant.approval.dead";
     public static final String TOPUP_FULFILLMENT_ROUTING_KEY = "topup.fulfillment";
     public static final String TOPUP_FULFILLMENT_DLQ_ROUTING_KEY = "topup.fulfillment.dead";
+    public static final String PAYOUT_RECON_ROUTING_KEY = "payout.reconciliation";
+    public static final String PAYOUT_RECON_DLQ_ROUTING_KEY = "payout.reconciliation.dead";
 
     // Queue Names
     public static final String MERCHANT_APPROVAL_QUEUE = "merchant.approval";
     public static final String MERCHANT_APPROVAL_DLQ = "merchant.approval.dead";
     public static final String TOPUP_FULFILLMENT_QUEUE = "topup.fulfillment";
     public static final String TOPUP_FULFILLMENT_DLQ = "topup.fulfillment.dead";
+    public static final String PAYOUT_RECON_QUEUE = "payout.reconciliation";
+    public static final String PAYOUT_RECON_DLQ = "payout.reconciliation.dead";
 
 
     // Retry Config
@@ -80,6 +84,19 @@ public class RabbitMQConfig {
         return QueueBuilder.durable(TOPUP_FULFILLMENT_DLQ).build();
     }
 
+    @Bean
+    public Queue payoutReconQueue() {
+        return QueueBuilder.durable(PAYOUT_RECON_QUEUE)
+                .withArgument("x-dead-letter-exchange", DLX_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", PAYOUT_RECON_DLQ_ROUTING_KEY)
+                .build();
+    }
+
+    @Bean
+    public Queue payoutReconDlq() {
+        return QueueBuilder.durable(PAYOUT_RECON_DLQ).build();
+    }
+
     // Bindings
     @Bean
     public Binding merchantApprovalBinding() {
@@ -111,6 +128,16 @@ public class RabbitMQConfig {
                 .bind(topupFulfillmentDlq())
                 .to(dlxExchange())
                 .with(TOPUP_FULFILLMENT_DLQ_ROUTING_KEY);
+    }
+
+    @Bean
+    public Binding payoutReconBinding() {
+        return BindingBuilder.bind(payoutReconQueue()).to(eventsExchange()).with(PAYOUT_RECON_ROUTING_KEY);
+    }
+
+    @Bean
+    public Binding payoutReconDlqBinding() {
+        return BindingBuilder.bind(payoutReconDlq()).to(dlxExchange()).with(PAYOUT_RECON_DLQ_ROUTING_KEY);
     }
 
     // Message Converter

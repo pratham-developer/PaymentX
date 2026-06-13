@@ -1,7 +1,7 @@
 package com.pratham.paymentx.controller;
 
-import com.pratham.paymentx.dto.transaction.TopupInitiateRequest;
-import com.pratham.paymentx.dto.transaction.TopupInitiateResponse;
+import com.pratham.paymentx.dto.transaction.topup.TopupInitiateRequest;
+import com.pratham.paymentx.dto.transaction.topup.TopupInitiateResponse;
 import com.pratham.paymentx.security.UserPrincipal;
 import com.pratham.paymentx.service.TopupService;
 import jakarta.validation.Valid;

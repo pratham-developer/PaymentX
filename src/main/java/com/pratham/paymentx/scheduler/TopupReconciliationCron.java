@@ -7,6 +7,7 @@ import com.pratham.paymentx.repository.TransactionRepository;
 import com.pratham.paymentx.service.TopupService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -23,17 +24,17 @@ public class TopupReconciliationCron {
     private final TopupFulfillmentPublisher topupPublisher;
     private final TopupService topupService;
 
-    // Runs every 5 minutes
     @Scheduled(cron = "0 */5 * * * *")
     public void sweepStaleTopups() {
         OffsetDateTime now = OffsetDateTime.now();
 
-        // 1. RECOVERY SWEEP (query for 6 mins to 24 hours old)
-        List<UUID> staleIds = transactionRepository.findStalePendingTopupIds(
+        // Fetch max 1000 records to prevent JVM memory spikes
+        List<UUID> staleIds = transactionRepository.findStaleTransactionIds(
                 TransactionType.TOPUP,
                 TransactionStatus.PENDING,
                 now.minusHours(24),
-                now.minusMinutes(6)
+                now.minusMinutes(6),
+                PageRequest.of(0, 1000)
         );
 
         if (!staleIds.isEmpty()) {
@@ -43,8 +44,7 @@ public class TopupReconciliationCron {
             }
         }
 
-        // 2. GARBAGE COLLECTION SWEEP
-        // Hard-fail abandoned records older than 24 hours to prevent DB bloat
+        // Garbage collection sweep (Leaves untouched, it executes an UPDATE query directly on DB)
         int expiredCount = topupService.markAsFailedIfOlderThan(
                 TransactionType.TOPUP,
                 TransactionStatus.PENDING,

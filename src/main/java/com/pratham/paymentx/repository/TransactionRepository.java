@@ -5,6 +5,7 @@ import com.pratham.paymentx.enums.TransactionStatus;
 import com.pratham.paymentx.enums.TransactionType;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -25,18 +26,21 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
     @Query("SELECT t FROM Transaction t WHERE t.id = :id")
     Optional<Transaction> findByIdAndLock(@Param("id") UUID id);
 
+    // generic method with Pageable to prevent OOM
     @Query("""
         SELECT t.id FROM Transaction t
         WHERE t.transactionType = :txType
         AND t.transactionStatus = :txStatus
         AND t.createdAt < :endTime
         AND t.createdAt > :startTime
+        ORDER BY t.createdAt ASC
     """)
-    List<UUID> findStalePendingTopupIds(
+    List<UUID> findStaleTransactionIds(
             @Param("txType") TransactionType txType,
             @Param("txStatus") TransactionStatus txStatus,
             @Param("startTime") OffsetDateTime startTime,
-            @Param("endTime") OffsetDateTime endTime
+            @Param("endTime") OffsetDateTime endTime,
+            Pageable pageable
     );
 
     @Modifying
@@ -47,4 +51,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
             @Param("failedStatus") TransactionStatus failedStatus,
             @Param("cutoffTime") OffsetDateTime cutoffTime
     );
+
+    Optional<Transaction> findByOriginalTransaction(Transaction originalTransaction);
 }
