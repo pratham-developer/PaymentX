@@ -38,10 +38,6 @@ public class User {
     @Column(nullable = false)
     @Builder.Default
     private Boolean profileActive = false;
-    //TODO: Admin route to activate and deactivate profiles (ban)
-    //when creating merchant, keep his profile inactive, admin will approve him
-    //when creating student, keep his profile active
-    //if we have to ban any user, we just make his profile inactive
 
     @CreationTimestamp
     @Column(updatable = false)

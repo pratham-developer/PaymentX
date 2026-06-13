@@ -53,4 +53,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
     );
 
     Optional<Transaction> findByOriginalTransaction(Transaction originalTransaction);
+
+    @Query("SELECT t FROM Transaction t WHERE t.senderWallet.id = :walletId OR t.receiverWallet.id = :walletId ORDER BY t.createdAt DESC")
+    List<Transaction> findRecentTransactionsByWalletId(@Param("walletId") UUID walletId, Pageable pageable);
 }

@@ -1,6 +1,7 @@
 package com.pratham.paymentx.dto.dashboard;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.pratham.paymentx.dto.transaction.TransactionDto;
 import com.pratham.paymentx.enums.MerchantGatewayStatus;
 import com.pratham.paymentx.enums.Role;
 import com.pratham.paymentx.enums.WalletStatus;
@@ -8,6 +9,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Data
 @Builder
@@ -34,5 +36,6 @@ public class DashboardResponse {
     // Merchant Specific
     private MerchantGatewayStatus gatewayStatus;
 
-    // TODO: private List<TransactionDto> recentTransactions;
+    // Recent Activity
+    private List<TransactionDto> recentTransactions;
 }

@@ -57,5 +57,4 @@ public class AuthController {
         authService.logout(refreshToken);
         return ResponseEntity.noContent().build();
     }
-    //TODO: dashboard route -> gets user details with the recent transactions
 }

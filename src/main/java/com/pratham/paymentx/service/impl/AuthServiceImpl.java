@@ -52,8 +52,6 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public TokenResponse login(GoogleLoginRequest request) {
-        // TODO: [REDIS RATE LIMITER]
-        // This acts as the shield to protect the db connection pool
         log.info("Processing a login request");
         GoogleAccount googleAccount = googleIdentityProvider.verifyGoogleId(request.getIdToken());
         UUID userId;

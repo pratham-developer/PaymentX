@@ -1,6 +1,7 @@
 package com.pratham.paymentx.service.impl;
 
 import com.pratham.paymentx.dto.dashboard.DashboardResponse;
+import com.pratham.paymentx.dto.transaction.TransactionDto;
 import com.pratham.paymentx.entity.*;
 import com.pratham.paymentx.enums.NfcCardStatus;
 import com.pratham.paymentx.enums.Role;
@@ -10,12 +11,15 @@ import com.pratham.paymentx.repository.*;
 import com.pratham.paymentx.service.DashboardService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +31,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final StudentProfileRepository studentProfileRepository;
     private final MerchantProfileRepository merchantProfileRepository;
     private final NfcCardRepository nfcCardRepository;
+    private final TransactionRepository transactionRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -46,7 +51,7 @@ public class DashboardServiceImpl implements DashboardService {
             return buildEarlyExit(user.getRole(), true, false);
         }
 
-        // ADMIN Route: Terminate flow here (Admins have no wallets/cards)
+        // ADMIN Route: Terminate flow here
         if (user.getRole() == Role.ADMIN) {
             return buildAdminDashboard();
         }
@@ -69,24 +74,31 @@ public class DashboardServiceImpl implements DashboardService {
             return response;
         }
 
+        // 6. Fetch Recent Transactions (Limit 5)
+        List<Transaction> recentTxs = transactionRepository.findRecentTransactionsByWalletId(
+                wallet.getId(), PageRequest.of(0, 5)
+        );
+        List<TransactionDto> mappedTransactions = recentTxs.stream()
+                .map(tx -> mapToTransactionDto(tx, wallet.getId()))
+                .collect(Collectors.toList());
+
         // Role-Specific Sub-routines
         return switch (user.getRole()) {
-            case STUDENT -> getStudentDashboard(user, wallet);
-            case MERCHANT -> getMerchantDashboard(user, wallet);
+            case STUDENT -> getStudentDashboard(user, wallet, mappedTransactions);
+            case MERCHANT -> getMerchantDashboard(user, wallet, mappedTransactions);
             default -> throw new IllegalStateException("Unexpected role encountered");
         };
     }
 
     // Routing Sub-Routines
 
-    private DashboardResponse getStudentDashboard(User user, Wallet wallet) {
+    private DashboardResponse getStudentDashboard(User user, Wallet wallet, List<TransactionDto> transactions) {
         StudentProfile profile = studentProfileRepository.findByUser(user)
                 .orElseThrow(() -> new ResourceNotFoundException("Student Profile missing"));
 
         Optional<NfcCard> cardOpt = nfcCardRepository.findByStudentProfile(profile);
         boolean cardActive = cardOpt.isPresent() && cardOpt.get().getStatus() == NfcCardStatus.ACTIVE;
 
-        // Steps 6 & 7: Even if card is blocked, we return full account details
         return DashboardResponse.builder()
                 .role(Role.STUDENT)
                 .profileCompleted(true)
@@ -100,14 +112,14 @@ public class DashboardServiceImpl implements DashboardService {
                 .availableBalance(wallet.getAvailableBalance())
                 .processingBalance(wallet.getProcessingBalance())
                 .totalBalance(calculateTotalBalance(wallet))
+                .recentTransactions(transactions)
                 .build();
     }
 
-    private DashboardResponse getMerchantDashboard(User user, Wallet wallet) {
+    private DashboardResponse getMerchantDashboard(User user, Wallet wallet, List<TransactionDto> transactions) {
         MerchantProfile profile = merchantProfileRepository.findByUser(user)
                 .orElseThrow(() -> new ResourceNotFoundException("Merchant Profile missing"));
 
-        // Step 7 for Merchants
         return DashboardResponse.builder()
                 .role(Role.MERCHANT)
                 .profileCompleted(true)
@@ -120,6 +132,7 @@ public class DashboardServiceImpl implements DashboardService {
                 .availableBalance(wallet.getAvailableBalance())
                 .processingBalance(wallet.getProcessingBalance())
                 .totalBalance(calculateTotalBalance(wallet))
+                .recentTransactions(transactions)
                 .build();
     }
 
@@ -143,5 +156,51 @@ public class DashboardServiceImpl implements DashboardService {
 
     private BigDecimal calculateTotalBalance(Wallet wallet) {
         return wallet.getAvailableBalance().add(wallet.getProcessingBalance());
+    }
+
+    // Transaction Mapper - Generates UI-Friendly Dynamic Titles
+    private TransactionDto mapToTransactionDto(Transaction tx, UUID myWalletId) {
+        boolean isCredit = tx.getReceiverWallet() != null && tx.getReceiverWallet().getId().equals(myWalletId);
+        String direction = isCredit ? "CREDIT" : "DEBIT";
+        String title = "Transaction";
+
+        switch (tx.getTransactionType()) {
+            case TOPUP -> title = "Wallet Top-up";
+            case PAYOUT -> title = "Bank Transfer";
+            case FEE -> title = "Instant Payout Fee";
+            case PURCHASE -> {
+                if (isCredit) {
+                    // I am the merchant receiving funds. Safely traverse the Sender chain.
+                    String studentName = Optional.ofNullable(tx.getSenderWallet())
+                            .map(Wallet::getUser)
+                            .map(User::getId)
+                            .flatMap(studentProfileRepository::findByUserId)
+                            .map(StudentProfile::getFullName)
+                            .orElse("Student");
+
+                    title = "Received from " + studentName;
+                } else {
+                    // I am the student paying funds. Safely traverse the Receiver chain.
+                    String merchantName = Optional.ofNullable(tx.getReceiverWallet())
+                            .map(Wallet::getUser)
+                            .map(User::getId)
+                            .flatMap(merchantProfileRepository::findByUserId)
+                            .map(MerchantProfile::getBusinessName)
+                            .orElse("Campus Merchant");
+
+                    title = "Paid to " + merchantName;
+                }
+            }
+        }
+
+        return TransactionDto.builder()
+                .id(tx.getId())
+                .amount(tx.getAmount())
+                .type(tx.getTransactionType())
+                .status(tx.getTransactionStatus())
+                .direction(direction)
+                .title(title)
+                .timestamp(tx.getCreatedAt())
+                .build();
     }
 }
